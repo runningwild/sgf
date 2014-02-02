@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"github.com/orfjackal/gospec/src/gospec"
 	"github.com/runningwild/sgf/core"
+	"io"
 )
 
 type encodable1 struct {
@@ -133,7 +134,7 @@ func BasicTypeRegistrySpec(c gospec.Context) {
 }
 
 func UnorderedTypeRegistrySpec(c gospec.Context) {
-	c.Specify("Test that the coder can decode packets out of ordtr.", func() {
+	c.Specify("Test that the coder can decode packets out of order.", func() {
 		var tr core.TypeRegistry
 		tr.Register(encodable1{})
 		tr.Register(encodable2{})
@@ -179,5 +180,67 @@ func UnorderedTypeRegistrySpec(c gospec.Context) {
 		c.Expect(d2, gospec.Equals, v2)
 		c.Expect(d3, gospec.Equals, v3)
 		c.Expect(d4, gospec.Equals, v4)
+	})
+}
+
+type invasiveWriter struct {
+	reg *core.TypeRegistry
+	buf io.Writer
+}
+
+func (iw *invasiveWriter) Write(data []byte) (int, error) {
+	_, err := iw.reg.Decode(bytes.NewBuffer(data))
+	if err != nil {
+		return 0, err
+	}
+	return iw.buf.Write(data)
+}
+
+func BlockWriteTypeRegistrySpec(c gospec.Context) {
+	c.Specify("Test that the coder writes complete values all at once.", func() {
+		var tr core.TypeRegistry
+		tr.Register(encodable1{})
+		tr.Register(encodable2{})
+		tr.Register(encodable3([]byte{}))
+		tr.Register(encodable4{})
+		tr.Register(encodable5{})
+		tr.Complete()
+
+		var iw = invasiveWriter{
+			reg: &tr,
+			buf: bytes.NewBuffer(nil),
+		}
+
+		e1 := encodable1{1, 2}
+		err := tr.Encode(e1, &iw)
+		c.Assume(err, gospec.Equals, error(nil))
+
+		e2 := encodable2{14}
+		err = tr.Encode(e2, &iw)
+		c.Assume(err, gospec.Equals, error(nil))
+
+		e3 := encodable3("fudgeball")
+		err = tr.Encode(e3, &iw)
+		c.Assume(err, gospec.Equals, error(nil))
+
+		e4 := encodable4{
+			A: e4sub1{
+				B: 10,
+				C: 20,
+				D: e4sub2{
+					E: "foo",
+					F: "bar",
+				},
+			},
+			G: 12345,
+		}
+		err = tr.Encode(e4, &iw)
+		c.Assume(err, gospec.Equals, error(nil))
+
+		e5 := encodable5{
+			A: []byte("Monkeyball"),
+		}
+		err = tr.Encode(e5, &iw)
+		c.Assume(err, gospec.Equals, error(nil))
 	})
 }

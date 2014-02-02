@@ -1,6 +1,7 @@
 package core
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -204,11 +205,16 @@ func (tr *TypeRegistry) Encode(v interface{}, writer io.Writer) error {
 	if !ok {
 		panic(fmt.Sprintf("Type %v was not registered.", reflect.TypeOf(v)))
 	}
-	err := binary.Write(writer, binary.LittleEndian, id)
+	tmp := bytes.NewBuffer(nil)
+	err := binary.Write(tmp, binary.LittleEndian, id)
 	if err != nil {
 		return err
 	}
-	err = tr.writeVal(writer, v)
+	err = tr.writeVal(tmp, v)
+	if err != nil {
+		return err
+	}
+	_, err = writer.Write(tmp.Bytes())
 	if err != nil {
 		return err
 	}
