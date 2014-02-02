@@ -1,7 +1,6 @@
 package core
 
 import (
-	"bytes"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -197,33 +196,31 @@ func (er *EncoderRegistry) readVal(reader io.Reader, v interface{}) error {
 	return nil
 }
 
-func (er *EncoderRegistry) Encode(v interface{}) ([]byte, error) {
+func (er *EncoderRegistry) Encode(v interface{}, writer io.Writer) error {
 	if !er.completed {
-		return nil, fmt.Errorf("Cannot call Encode() before calling Complete()")
+		return fmt.Errorf("Cannot call Encode() before calling Complete()")
 	}
 	id, ok := er.typeToId[reflect.TypeOf(v)]
 	if !ok {
 		panic(fmt.Sprintf("Type %v was not registered.", reflect.TypeOf(v)))
 	}
-	buf := bytes.NewBuffer(nil)
-	err := binary.Write(buf, binary.LittleEndian, id)
+	err := binary.Write(writer, binary.LittleEndian, id)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	err = er.writeVal(buf, v)
+	err = er.writeVal(writer, v)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return buf.Bytes(), nil
+	return nil
 }
 
-func (er *EncoderRegistry) Decode(data []byte) (interface{}, error) {
+func (er *EncoderRegistry) Decode(reader io.Reader) (interface{}, error) {
 	if !er.completed {
 		return nil, fmt.Errorf("Cannot call Decode() before calling Complete()")
 	}
-	buf := bytes.NewBuffer(data)
 	var id uint32
-	err := binary.Read(buf, binary.LittleEndian, &id)
+	err := binary.Read(reader, binary.LittleEndian, &id)
 	if err != nil {
 		return nil, err
 	}
@@ -232,7 +229,7 @@ func (er *EncoderRegistry) Decode(data []byte) (interface{}, error) {
 	}
 	t := er.types[int(id)]
 	v := reflect.New(t)
-	err = er.readVal(buf, v.Interface())
+	err = er.readVal(reader, v.Interface())
 	if err != nil {
 		return nil, err
 	}

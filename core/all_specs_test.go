@@ -8,6 +8,7 @@ import (
 func TestAllSpecs(t *testing.T) {
 	r := gospec.NewRunner()
 	r.AddSpec(SimpleSpec)
-	r.AddSpec(EncoderSpec)
+	r.AddSpec(BasicEncoderSpec)
+	r.AddSpec(UnorderedEncoderSpec)
 	gospec.MainGoTest(r, t)
 }
