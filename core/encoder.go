@@ -20,28 +20,28 @@ func (ts typeSorter) Swap(i, j int) {
 	ts[i], ts[j] = ts[j], ts[i]
 }
 
-type EncoderRegistry struct {
+type TypeRegistry struct {
 	typeToId  map[reflect.Type]uint32
 	types     []reflect.Type
 	completed bool
 }
 
-func (er *EncoderRegistry) Register(t interface{}) {
-	if er.completed {
+func (tr *TypeRegistry) Register(t interface{}) {
+	if tr.completed {
 		panic("Cannot call Register() after Complete().")
 	}
-	er.types = append(er.types, reflect.TypeOf(t))
+	tr.types = append(tr.types, reflect.TypeOf(t))
 }
 
-func (er *EncoderRegistry) Complete() {
-	er.completed = true
-	sort.Sort(typeSorter(er.types))
-	er.typeToId = make(map[reflect.Type]uint32)
-	for id, t := range er.types {
-		er.typeToId[t] = uint32(id)
+func (tr *TypeRegistry) Complete() {
+	tr.completed = true
+	sort.Sort(typeSorter(tr.types))
+	tr.typeToId = make(map[reflect.Type]uint32)
+	for id, t := range tr.types {
+		tr.typeToId[t] = uint32(id)
 	}
 }
-func (er *EncoderRegistry) writeVal(writer io.Writer, v interface{}) error {
+func (tr *TypeRegistry) writeVal(writer io.Writer, v interface{}) error {
 	var err error
 	val := reflect.ValueOf(v)
 	typ := val.Type()
@@ -81,7 +81,7 @@ func (er *EncoderRegistry) writeVal(writer io.Writer, v interface{}) error {
 			break
 		}
 		for i := 0; i < val.Len(); i++ {
-			err = er.writeVal(writer, val.Index(i).Interface())
+			err = tr.writeVal(writer, val.Index(i).Interface())
 			if err != nil {
 				break
 			}
@@ -98,7 +98,7 @@ func (er *EncoderRegistry) writeVal(writer io.Writer, v interface{}) error {
 	case reflect.Struct:
 		n := typ.NumField()
 		for i := 0; i < n; i++ {
-			err = er.writeVal(writer, val.Field(i).Interface())
+			err = tr.writeVal(writer, val.Field(i).Interface())
 			if err != nil {
 				break
 			}
@@ -113,7 +113,7 @@ func (er *EncoderRegistry) writeVal(writer io.Writer, v interface{}) error {
 	return nil
 }
 
-func (er *EncoderRegistry) readVal(reader io.Reader, v interface{}) error {
+func (tr *TypeRegistry) readVal(reader io.Reader, v interface{}) error {
 	var err error
 	val := reflect.ValueOf(v)
 	if val.Type().Kind() != reflect.Ptr {
@@ -172,7 +172,7 @@ func (er *EncoderRegistry) readVal(reader io.Reader, v interface{}) error {
 		}
 		buffer := make([]byte, int(length))
 		for i := range buffer {
-			er.readVal(reader, &buffer[i])
+			tr.readVal(reader, &buffer[i])
 			if err != nil {
 				break
 			}
@@ -182,7 +182,7 @@ func (er *EncoderRegistry) readVal(reader io.Reader, v interface{}) error {
 	case reflect.Struct:
 		n := typ.NumField()
 		for i := 0; i < n; i++ {
-			err = er.readVal(reader, val.Elem().Field(i).Addr().Interface())
+			err = tr.readVal(reader, val.Elem().Field(i).Addr().Interface())
 			if err != nil {
 				break
 			}
@@ -196,11 +196,11 @@ func (er *EncoderRegistry) readVal(reader io.Reader, v interface{}) error {
 	return nil
 }
 
-func (er *EncoderRegistry) Encode(v interface{}, writer io.Writer) error {
-	if !er.completed {
+func (tr *TypeRegistry) Encode(v interface{}, writer io.Writer) error {
+	if !tr.completed {
 		return fmt.Errorf("Cannot call Encode() before calling Complete()")
 	}
-	id, ok := er.typeToId[reflect.TypeOf(v)]
+	id, ok := tr.typeToId[reflect.TypeOf(v)]
 	if !ok {
 		panic(fmt.Sprintf("Type %v was not registered.", reflect.TypeOf(v)))
 	}
@@ -208,15 +208,15 @@ func (er *EncoderRegistry) Encode(v interface{}, writer io.Writer) error {
 	if err != nil {
 		return err
 	}
-	err = er.writeVal(writer, v)
+	err = tr.writeVal(writer, v)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (er *EncoderRegistry) Decode(reader io.Reader) (interface{}, error) {
-	if !er.completed {
+func (tr *TypeRegistry) Decode(reader io.Reader) (interface{}, error) {
+	if !tr.completed {
 		return nil, fmt.Errorf("Cannot call Decode() before calling Complete()")
 	}
 	var id uint32
@@ -224,12 +224,12 @@ func (er *EncoderRegistry) Decode(reader io.Reader) (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	if int(id) >= len(er.types) {
+	if int(id) >= len(tr.types) {
 		return nil, fmt.Errorf("Invalid id: %d", id)
 	}
-	t := er.types[int(id)]
+	t := tr.types[int(id)]
 	v := reflect.New(t)
-	err = er.readVal(reader, v.Interface())
+	err = tr.readVal(reader, v.Interface())
 	if err != nil {
 		return nil, err
 	}

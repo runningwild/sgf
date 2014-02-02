@@ -54,20 +54,20 @@ type ider interface {
 	id() int
 }
 
-func BasicEncoderSpec(c gospec.Context) {
-	c.Specify("Test the coder.", func() {
-		var er core.EncoderRegistry
-		er.Register(encodable1{})
-		er.Register(encodable2{})
-		er.Register(encodable3([]byte{}))
-		er.Register(encodable4{})
-		er.Register(encodable5{})
-		er.Complete()
+func BasicTypeRegistrySpec(c gospec.Context) {
+	c.Specify("Test the codtr.", func() {
+		var tr core.TypeRegistry
+		tr.Register(encodable1{})
+		tr.Register(encodable2{})
+		tr.Register(encodable3([]byte{}))
+		tr.Register(encodable4{})
+		tr.Register(encodable5{})
+		tr.Complete()
 		e1 := encodable1{1, 2}
 		buf := bytes.NewBuffer(nil)
-		err := er.Encode(e1, buf)
+		err := tr.Encode(e1, buf)
 		c.Assume(err, gospec.Equals, error(nil))
-		dec1, err := er.Decode(buf)
+		dec1, err := tr.Decode(buf)
 		c.Assume(err, gospec.Equals, error(nil))
 		d1, ok := dec1.(encodable1)
 		c.Assume(ok, gospec.Equals, true)
@@ -76,9 +76,9 @@ func BasicEncoderSpec(c gospec.Context) {
 
 		e2 := encodable2{14}
 		buf = bytes.NewBuffer(nil)
-		err = er.Encode(e2, buf)
+		err = tr.Encode(e2, buf)
 		c.Assume(err, gospec.Equals, error(nil))
-		dec2, err := er.Decode(buf)
+		dec2, err := tr.Decode(buf)
 		c.Assume(err, gospec.Equals, error(nil))
 		d2, ok := dec2.(encodable2)
 		c.Assume(ok, gospec.Equals, true)
@@ -87,9 +87,9 @@ func BasicEncoderSpec(c gospec.Context) {
 
 		e3 := encodable3("fudgeball")
 		buf = bytes.NewBuffer(nil)
-		err = er.Encode(e3, buf)
+		err = tr.Encode(e3, buf)
 		c.Assume(err, gospec.Equals, error(nil))
-		dec3, err := er.Decode(buf)
+		dec3, err := tr.Decode(buf)
 		c.Assume(err, gospec.Equals, error(nil))
 		d3, ok := dec3.(encodable3)
 		c.Assume(ok, gospec.Equals, true)
@@ -108,9 +108,9 @@ func BasicEncoderSpec(c gospec.Context) {
 			G: 12345,
 		}
 		buf = bytes.NewBuffer(nil)
-		err = er.Encode(e4, buf)
+		err = tr.Encode(e4, buf)
 		c.Assume(err, gospec.Equals, error(nil))
-		dec4, err := er.Decode(buf)
+		dec4, err := tr.Decode(buf)
 		c.Assume(err, gospec.Equals, error(nil))
 		d4, ok := dec4.(encodable4)
 		c.Assume(ok, gospec.Equals, true)
@@ -121,9 +121,9 @@ func BasicEncoderSpec(c gospec.Context) {
 			A: []byte("Monkeyball"),
 		}
 		buf = bytes.NewBuffer(nil)
-		err = er.Encode(e5, buf)
+		err = tr.Encode(e5, buf)
 		c.Assume(err, gospec.Equals, error(nil))
-		dec5, err := er.Decode(buf)
+		dec5, err := tr.Decode(buf)
 		c.Assume(err, gospec.Equals, error(nil))
 		d5, ok := dec5.(encodable5)
 		c.Assume(ok, gospec.Equals, true)
@@ -132,12 +132,12 @@ func BasicEncoderSpec(c gospec.Context) {
 	})
 }
 
-func UnorderedEncoderSpec(c gospec.Context) {
-	c.Specify("Test that the coder can decode packets out of order.", func() {
-		var er core.EncoderRegistry
-		er.Register(encodable1{})
-		er.Register(encodable2{})
-		er.Complete()
+func UnorderedTypeRegistrySpec(c gospec.Context) {
+	c.Specify("Test that the coder can decode packets out of ordtr.", func() {
+		var tr core.TypeRegistry
+		tr.Register(encodable1{})
+		tr.Register(encodable2{})
+		tr.Complete()
 
 		v1 := encodable1{1, 2}
 		v2 := encodable2{3}
@@ -145,19 +145,19 @@ func UnorderedEncoderSpec(c gospec.Context) {
 		v4 := encodable1{5, 6}
 
 		b1 := bytes.NewBuffer(nil)
-		err := er.Encode(v1, b1)
+		err := tr.Encode(v1, b1)
 		c.Assume(err, gospec.Equals, error(nil))
 
 		b2 := bytes.NewBuffer(nil)
-		err = er.Encode(v2, b2)
+		err = tr.Encode(v2, b2)
 		c.Assume(err, gospec.Equals, error(nil))
 
 		b3 := bytes.NewBuffer(nil)
-		err = er.Encode(v3, b3)
+		err = tr.Encode(v3, b3)
 		c.Assume(err, gospec.Equals, error(nil))
 
 		b4 := bytes.NewBuffer(nil)
-		err = er.Encode(v4, b4)
+		err = tr.Encode(v4, b4)
 		c.Assume(err, gospec.Equals, error(nil))
 
 		buf := bytes.NewBuffer(nil)
@@ -166,13 +166,13 @@ func UnorderedEncoderSpec(c gospec.Context) {
 		buf.Write(b4.Bytes())
 		buf.Write(b2.Bytes())
 
-		d1, err := er.Decode(buf)
+		d1, err := tr.Decode(buf)
 		c.Assume(err, gospec.Equals, error(nil))
-		d3, err := er.Decode(buf)
+		d3, err := tr.Decode(buf)
 		c.Assume(err, gospec.Equals, error(nil))
-		d4, err := er.Decode(buf)
+		d4, err := tr.Decode(buf)
 		c.Assume(err, gospec.Equals, error(nil))
-		d2, err := er.Decode(buf)
+		d2, err := tr.Decode(buf)
 		c.Assume(err, gospec.Equals, error(nil))
 
 		c.Expect(d1, gospec.Equals, v1)
