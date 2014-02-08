@@ -99,14 +99,19 @@ func (tr *TypeRegistry) writeVal(writer io.Writer, v interface{}) error {
 	case reflect.Struct:
 		n := typ.NumField()
 		for i := 0; i < n; i++ {
-			err = tr.writeVal(writer, val.Field(i).Interface())
+			var err error
+			if typ.Field(i).Type.Kind() == reflect.Interface {
+				err = tr.Encode(val.Field(i).Interface(), writer)
+			} else {
+				err = tr.writeVal(writer, val.Field(i).Interface())
+			}
 			if err != nil {
 				break
 			}
 		}
 
 	default:
-		return fmt.Errorf("Can't write %v, not implemented.", reflect.TypeOf(val))
+		return fmt.Errorf("Can't write %v, not implemented.", typ)
 	}
 	if err != nil {
 		return err
@@ -157,14 +162,14 @@ func (tr *TypeRegistry) readVal(reader io.Reader, v interface{}) error {
 		if err != nil {
 			break
 		}
-		dst := reflect.MakeSlice(typ, int(length), int(length))
-		for i := 0; i < dst.Len(); i++ {
-			err = binary.Read(reader, binary.LittleEndian, dst.Index(i).Addr().Interface())
+		src := reflect.MakeSlice(typ, int(length), int(length))
+		for i := 0; i < src.Len(); i++ {
+			err = binary.Read(reader, binary.LittleEndian, src.Index(i).Addr().Interface())
 			if err != nil {
 				break
 			}
 		}
-		val.Elem().Set(dst)
+		val.Elem().Set(src)
 	case reflect.String:
 		var length uint32
 		err = binary.Read(reader, binary.LittleEndian, &length)
@@ -188,6 +193,10 @@ func (tr *TypeRegistry) readVal(reader io.Reader, v interface{}) error {
 				break
 			}
 		}
+	case reflect.Interface:
+		var src interface{}
+		src, err = tr.Decode(reader)
+		val.Elem().Set(reflect.ValueOf(src))
 	default:
 		return fmt.Errorf("Can't read %v, not implemented.", kind)
 	}

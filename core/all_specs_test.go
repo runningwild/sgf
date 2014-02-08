@@ -11,5 +11,6 @@ func TestAllSpecs(t *testing.T) {
 	r.AddSpec(BasicTypeRegistrySpec)
 	r.AddSpec(UnorderedTypeRegistrySpec)
 	r.AddSpec(BlockWriteTypeRegistrySpec)
+	r.AddSpec(InterfaceTypeRegistrySpec)
 	gospec.MainGoTest(r, t)
 }

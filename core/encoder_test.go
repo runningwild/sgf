@@ -2,6 +2,7 @@ package core_test
 
 import (
 	"bytes"
+	"fmt"
 	"github.com/orfjackal/gospec/src/gospec"
 	"github.com/runningwild/sgf/core"
 	"io"
@@ -33,6 +34,29 @@ type e4sub2 struct {
 
 type encodable5 struct {
 	A []byte
+}
+
+type encodable6 struct {
+	Interface Barer
+}
+type Barer interface {
+	Bar() string
+}
+type BarerImpl1 struct {
+	A int32
+	B string
+}
+
+func (b BarerImpl1) Bar() string {
+	return fmt.Sprintf("%d:%s", b.A, b.B)
+}
+
+type BarerImpl2 struct {
+	A, B int32
+}
+
+func (b BarerImpl2) Bar() string {
+	return fmt.Sprintf("%d:%d", b.A, b.B)
 }
 
 func (encodable1) id() int {
@@ -242,5 +266,40 @@ func BlockWriteTypeRegistrySpec(c gospec.Context) {
 		}
 		err = tr.Encode(e5, &iw)
 		c.Assume(err, gospec.Equals, error(nil))
+	})
+}
+
+func InterfaceTypeRegistrySpec(c gospec.Context) {
+	c.Specify("Test that types containing interfaces are properly encoded.", func() {
+		var tr core.TypeRegistry
+		tr.Register(encodable6{})
+		tr.Register(BarerImpl1{})
+		tr.Register(BarerImpl2{})
+		tr.Complete()
+
+		v1 := encodable6{
+			Interface: BarerImpl1{10, "foo"},
+		}
+		v2 := encodable6{
+			Interface: BarerImpl2{3, 4},
+		}
+
+		b := bytes.NewBuffer(nil)
+		err := tr.Encode(v1, b)
+		c.Assume(err, gospec.Equals, error(nil))
+		err = tr.Encode(v2, b)
+		c.Assume(err, gospec.Equals, error(nil))
+
+		d1, err := tr.Decode(b)
+		c.Assume(err, gospec.Equals, error(nil))
+		d2, err := tr.Decode(b)
+		c.Assume(err, gospec.Equals, error(nil))
+
+		c1, ok := d1.(encodable6)
+		c.Assume(ok, gospec.Equals, true)
+		c.Expect(c1.Interface.Bar(), gospec.Equals, "10:foo")
+		c2, ok := d2.(encodable6)
+		c.Assume(ok, gospec.Equals, true)
+		c.Expect(c2.Interface.Bar(), gospec.Equals, "3:4")
 	})
 }
