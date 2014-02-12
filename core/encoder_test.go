@@ -228,6 +228,8 @@ func BlockWriteTypeRegistrySpec(c gospec.Context) {
 		tr.Register(encodable3([]byte{}))
 		tr.Register(encodable4{})
 		tr.Register(encodable5{})
+		tr.Register(encodable6{})
+		tr.Register(BarerImpl1{})
 		tr.Complete()
 
 		var iw = invasiveWriter{
@@ -265,6 +267,12 @@ func BlockWriteTypeRegistrySpec(c gospec.Context) {
 			A: []byte("Monkeyball"),
 		}
 		err = tr.Encode(e5, &iw)
+		c.Assume(err, gospec.Equals, error(nil))
+
+		e6 := encodable6{
+			Interface: BarerImpl1{10, "foo"},
+		}
+		err = tr.Encode(e6, &iw)
 		c.Assume(err, gospec.Equals, error(nil))
 	})
 }
