@@ -106,102 +106,117 @@ func BasicTypeRegistrySpec(c gospec.Context) {
 		tr.Register(encodable7{})
 		tr.Register(encodable8{})
 		tr.Complete()
-		e1 := encodable1{1, 2}
-		buf := bytes.NewBuffer(nil)
-		err := tr.Encode(e1, buf)
-		c.Assume(err, gospec.Equals, error(nil))
-		dec1, err := tr.Decode(buf)
-		c.Assume(err, gospec.Equals, error(nil))
-		d1, ok := dec1.(encodable1)
-		c.Assume(ok, gospec.Equals, true)
-		c.Expect(dec1.(ider).id(), gospec.Equals, 1)
-		c.Expect(d1, gospec.Equals, e1)
 
-		e2 := encodable2{14}
-		buf = bytes.NewBuffer(nil)
-		err = tr.Encode(e2, buf)
-		c.Assume(err, gospec.Equals, error(nil))
-		dec2, err := tr.Decode(buf)
-		c.Assume(err, gospec.Equals, error(nil))
-		d2, ok := dec2.(encodable2)
-		c.Assume(ok, gospec.Equals, true)
-		c.Expect(dec2.(ider).id(), gospec.Equals, 2)
-		c.Expect(d2, gospec.Equals, e2)
+		c.Specify("Test that encoder handles int32.", func() {
+			e1 := encodable1{1, 2}
+			buf := bytes.NewBuffer(nil)
+			err := tr.Encode(e1, buf)
+			c.Assume(err, gospec.Equals, error(nil))
+			dec1, err := tr.Decode(buf)
+			c.Assume(err, gospec.Equals, error(nil))
+			d1, ok := dec1.(encodable1)
+			c.Assume(ok, gospec.Equals, true)
+			c.Expect(dec1.(ider).id(), gospec.Equals, 1)
+			c.Expect(d1, gospec.Equals, e1)
+		})
 
-		e3 := encodable3("fudgeball")
-		buf = bytes.NewBuffer(nil)
-		err = tr.Encode(e3, buf)
-		c.Assume(err, gospec.Equals, error(nil))
-		dec3, err := tr.Decode(buf)
-		c.Assume(err, gospec.Equals, error(nil))
-		d3, ok := dec3.(encodable3)
-		c.Assume(ok, gospec.Equals, true)
-		c.Expect(dec3.(ider).id(), gospec.Equals, 3)
-		c.Expect(string(d3), gospec.Equals, string(e3))
+		c.Specify("Test that encoder handles byte.", func() {
+			e2 := encodable2{14}
+			buf = bytes.NewBuffer(nil)
+			err = tr.Encode(e2, buf)
+			c.Assume(err, gospec.Equals, error(nil))
+			dec2, err := tr.Decode(buf)
+			c.Assume(err, gospec.Equals, error(nil))
+			d2, ok := dec2.(encodable2)
+			c.Assume(ok, gospec.Equals, true)
+			c.Expect(dec2.(ider).id(), gospec.Equals, 2)
+			c.Expect(d2, gospec.Equals, e2)
+		})
 
-		e4 := encodable4{
-			A: e4sub1{
-				B: 10,
-				C: 20,
-				D: e4sub2{
-					E: "foo",
-					F: "bar",
+		c.Specify("Test that encoder handles string.", func() {
+			e3 := encodable3("fudgeball")
+			buf = bytes.NewBuffer(nil)
+			err = tr.Encode(e3, buf)
+			c.Assume(err, gospec.Equals, error(nil))
+			dec3, err := tr.Decode(buf)
+			c.Assume(err, gospec.Equals, error(nil))
+			d3, ok := dec3.(encodable3)
+			c.Assume(ok, gospec.Equals, true)
+			c.Expect(dec3.(ider).id(), gospec.Equals, 3)
+			c.Expect(string(d3), gospec.Equals, string(e3))
+		})
+
+		c.Specify("Test that encoder handles composite structs.", func() {
+			e4 := encodable4{
+				A: e4sub1{
+					B: 10,
+					C: 20,
+					D: e4sub2{
+						E: "foo",
+						F: "bar",
+					},
 				},
-			},
-			G: 12345,
-		}
-		buf = bytes.NewBuffer(nil)
-		err = tr.Encode(e4, buf)
-		c.Assume(err, gospec.Equals, error(nil))
-		dec4, err := tr.Decode(buf)
-		c.Assume(err, gospec.Equals, error(nil))
-		d4, ok := dec4.(encodable4)
-		c.Assume(ok, gospec.Equals, true)
-		c.Expect(dec4.(ider).id(), gospec.Equals, 4)
-		c.Expect(d4, gospec.Equals, e4)
+				G: 12345,
+			}
+			buf = bytes.NewBuffer(nil)
+			err = tr.Encode(e4, buf)
+			c.Assume(err, gospec.Equals, error(nil))
+			dec4, err := tr.Decode(buf)
+			c.Assume(err, gospec.Equals, error(nil))
+			d4, ok := dec4.(encodable4)
+			c.Assume(ok, gospec.Equals, true)
+			c.Expect(dec4.(ider).id(), gospec.Equals, 4)
+			c.Expect(d4, gospec.Equals, e4)
+		})
 
-		e5 := encodable5{
-			A: []byte("Monkeyball"),
-		}
-		buf = bytes.NewBuffer(nil)
-		err = tr.Encode(e5, buf)
-		c.Assume(err, gospec.Equals, error(nil))
-		dec5, err := tr.Decode(buf)
-		c.Assume(err, gospec.Equals, error(nil))
-		d5, ok := dec5.(encodable5)
-		c.Assume(ok, gospec.Equals, true)
-		c.Expect(dec5.(ider).id(), gospec.Equals, 5)
-		c.Expect(string(d5.A), gospec.Equals, string(e5.A))
+		c.Specify("Test that encoder handles []byte.", func() {
+			e5 := encodable5{
+				A: []byte("Monkeyball"),
+			}
+			buf = bytes.NewBuffer(nil)
+			err = tr.Encode(e5, buf)
+			c.Assume(err, gospec.Equals, error(nil))
+			dec5, err := tr.Decode(buf)
+			c.Assume(err, gospec.Equals, error(nil))
+			d5, ok := dec5.(encodable5)
+			c.Assume(ok, gospec.Equals, true)
+			c.Expect(dec5.(ider).id(), gospec.Equals, 5)
+			c.Expect(string(d5.A), gospec.Equals, string(e5.A))
+		})
 
-		e7 := encodable7{
-			A: 1,
-			B: 2,
-		}
-		buf = bytes.NewBuffer(nil)
-		err = tr.Encode(e7, buf)
-		c.Assume(err, gospec.Equals, error(nil))
-		dec7, err := tr.Decode(buf)
-		c.Assume(err, gospec.Equals, error(nil))
-		d7, ok := dec7.(encodable7)
-		c.Assume(ok, gospec.Equals, true)
-		c.Expect(dec7.(ider).id(), gospec.Equals, 7)
-		c.Expect(string(d7.A), gospec.Equals, string(e7.A))
-		c.Expect(string(d7.B), gospec.Equals, string(e7.B))
+		c.Specify("Test that encoder handles int and uint.", func() {
+			e7 := encodable7{
+				A: 1,
+				B: 2,
+			}
+			buf = bytes.NewBuffer(nil)
+			err = tr.Encode(e7, buf)
+			c.Assume(err, gospec.Equals, error(nil))
+			dec7, err := tr.Decode(buf)
+			c.Assume(err, gospec.Equals, error(nil))
+			d7, ok := dec7.(encodable7)
+			c.Assume(ok, gospec.Equals, true)
+			c.Expect(dec7.(ider).id(), gospec.Equals, 7)
+			c.Expect(string(d7.A), gospec.Equals, string(e7.A))
+			c.Expect(string(d7.B), gospec.Equals, string(e7.B))
+		})
 
-		e8 := encodable8{
-			A: []int{1, 2, 3},
-			B: []uint{6, 7, 8},
-		}
-		buf = bytes.NewBuffer(nil)
-		err = tr.Encode(e8, buf)
-		c.Assume(err, gospec.Equals, error(nil))
-		dec8, err := tr.Decode(buf)
-		c.Assume(err, gospec.Equals, error(nil))
-		d8, ok := dec8.(encodable8)
-		c.Assume(ok, gospec.Equals, true)
-		c.Expect(dec8.(ider).id(), gospec.Equals, 8)
-		c.Expect(fmt.Sprintf("%v", d8.A), gospec.Equals, fmt.Sprintf("%v", e8.A))
-		c.Expect(fmt.Sprintf("%v", d8.B), gospec.Equals, fmt.Sprintf("%v", e8.B))
+		c.Specify("Test that encoder handles []int and []uint.", func() {
+			e8 := encodable8{
+				A: []int{1, 2, 3},
+				B: []uint{6, 7, 8},
+			}
+			buf = bytes.NewBuffer(nil)
+			err = tr.Encode(e8, buf)
+			c.Assume(err, gospec.Equals, error(nil))
+			dec8, err := tr.Decode(buf)
+			c.Assume(err, gospec.Equals, error(nil))
+			d8, ok := dec8.(encodable8)
+			c.Assume(ok, gospec.Equals, true)
+			c.Expect(dec8.(ider).id(), gospec.Equals, 8)
+			c.Expect(fmt.Sprintf("%v", d8.A), gospec.Equals, fmt.Sprintf("%v", e8.A))
+			c.Expect(fmt.Sprintf("%v", d8.B), gospec.Equals, fmt.Sprintf("%v", e8.B))
+		})
 	})
 }
 
