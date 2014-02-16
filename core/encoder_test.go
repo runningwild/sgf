@@ -122,8 +122,8 @@ func BasicTypeRegistrySpec(c gospec.Context) {
 
 		c.Specify("Test that encoder handles byte.", func() {
 			e2 := encodable2{14}
-			buf = bytes.NewBuffer(nil)
-			err = tr.Encode(e2, buf)
+			buf := bytes.NewBuffer(nil)
+			err := tr.Encode(e2, buf)
 			c.Assume(err, gospec.Equals, error(nil))
 			dec2, err := tr.Decode(buf)
 			c.Assume(err, gospec.Equals, error(nil))
@@ -135,8 +135,8 @@ func BasicTypeRegistrySpec(c gospec.Context) {
 
 		c.Specify("Test that encoder handles string.", func() {
 			e3 := encodable3("fudgeball")
-			buf = bytes.NewBuffer(nil)
-			err = tr.Encode(e3, buf)
+			buf := bytes.NewBuffer(nil)
+			err := tr.Encode(e3, buf)
 			c.Assume(err, gospec.Equals, error(nil))
 			dec3, err := tr.Decode(buf)
 			c.Assume(err, gospec.Equals, error(nil))
@@ -158,8 +158,8 @@ func BasicTypeRegistrySpec(c gospec.Context) {
 				},
 				G: 12345,
 			}
-			buf = bytes.NewBuffer(nil)
-			err = tr.Encode(e4, buf)
+			buf := bytes.NewBuffer(nil)
+			err := tr.Encode(e4, buf)
 			c.Assume(err, gospec.Equals, error(nil))
 			dec4, err := tr.Decode(buf)
 			c.Assume(err, gospec.Equals, error(nil))
@@ -173,8 +173,8 @@ func BasicTypeRegistrySpec(c gospec.Context) {
 			e5 := encodable5{
 				A: []byte("Monkeyball"),
 			}
-			buf = bytes.NewBuffer(nil)
-			err = tr.Encode(e5, buf)
+			buf := bytes.NewBuffer(nil)
+			err := tr.Encode(e5, buf)
 			c.Assume(err, gospec.Equals, error(nil))
 			dec5, err := tr.Decode(buf)
 			c.Assume(err, gospec.Equals, error(nil))
@@ -189,8 +189,8 @@ func BasicTypeRegistrySpec(c gospec.Context) {
 				A: 1,
 				B: 2,
 			}
-			buf = bytes.NewBuffer(nil)
-			err = tr.Encode(e7, buf)
+			buf := bytes.NewBuffer(nil)
+			err := tr.Encode(e7, buf)
 			c.Assume(err, gospec.Equals, error(nil))
 			dec7, err := tr.Decode(buf)
 			c.Assume(err, gospec.Equals, error(nil))
@@ -206,8 +206,8 @@ func BasicTypeRegistrySpec(c gospec.Context) {
 				A: []int{1, 2, 3},
 				B: []uint{6, 7, 8},
 			}
-			buf = bytes.NewBuffer(nil)
-			err = tr.Encode(e8, buf)
+			buf := bytes.NewBuffer(nil)
+			err := tr.Encode(e8, buf)
 			c.Assume(err, gospec.Equals, error(nil))
 			dec8, err := tr.Decode(buf)
 			c.Assume(err, gospec.Equals, error(nil))

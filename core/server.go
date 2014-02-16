@@ -10,10 +10,10 @@ import (
 type Game interface{}
 
 type Update interface {
-	Apply(game *Game)
+	ApplyUpdate(game *Game)
 }
 type Request interface {
-	Apply(game *Game) []Update
+	ApplyRequest(game *Game) []Update
 }
 
 type completeGameState struct {
@@ -185,11 +185,11 @@ func (host *Host) handleRequestsAndUpdates() {
 
 		case request := <-requestCollector:
 			host.GameMutex.Lock()
-			updates := request.Apply(&host.Game)
+			updates := request.ApplyRequest(&host.Game)
 			host.GameMutex.Unlock()
 			for _, update := range updates {
 				host.GameMutex.Lock()
-				update.Apply(&host.Game)
+				update.ApplyUpdate(&host.Game)
 				host.GameMutex.Unlock()
 				for _, node := range nodes {
 					writer := host.Comm.GetDirectedWriter("MajorUpdates", node)
@@ -203,7 +203,7 @@ func (host *Host) handleRequestsAndUpdates() {
 
 		case update := <-host.majorUpdates:
 			host.GameMutex.Lock()
-			update.Apply(&host.Game)
+			update.ApplyUpdate(&host.Game)
 			host.GameMutex.Unlock()
 			for _, node := range nodes {
 				writer := host.Comm.GetDirectedWriter("MajorUpdates", node)
@@ -288,7 +288,7 @@ func (c *Client) primaryRoutine() {
 	for {
 		select {
 		case update := <-c.AllRemoteUpdates:
-			update.(Update).Apply(&c.Game)
+			update.(Update).ApplyUpdate(&c.Game)
 
 		case update := <-c.MinorUpdatesChan:
 			err := c.MinorUpdatesEnc.Encode(update)
@@ -296,7 +296,7 @@ func (c *Client) primaryRoutine() {
 				// TODO: Handle this more gracefully
 				panic(err)
 			}
-			update.Apply(&c.Game)
+			update.ApplyUpdate(&c.Game)
 
 		case request := <-c.RequestsChan:
 			err := c.RequestsEnc.Encode(request)
