@@ -6,7 +6,7 @@ import (
 	"github.com/runningwild/sgf/core"
 )
 
-func SimpleSpec(c gospec.Context) {
+func SimpleServerSpec(c gospec.Context) {
 	c.Specify("Hook up all of the basic parts and make them talk.", func() {
 		host, err := core.MakeHost("127.0.0.1", 1234)
 		c.Assume(err, gospec.Equals, error(nil))
