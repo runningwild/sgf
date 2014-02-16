@@ -47,6 +47,11 @@ type BarerImpl1 struct {
 	B string
 }
 
+type encodable7 struct {
+	A int
+	B uint
+}
+
 func (b BarerImpl1) Bar() string {
 	return fmt.Sprintf("%d:%s", b.A, b.B)
 }
@@ -74,19 +79,23 @@ func (encodable4) id() int {
 func (encodable5) id() int {
 	return 5
 }
+func (encodable7) id() int {
+	return 7
+}
 
 type ider interface {
 	id() int
 }
 
 func BasicTypeRegistrySpec(c gospec.Context) {
-	c.Specify("Test the codtr.", func() {
+	c.Specify("Test the coder.", func() {
 		var tr core.TypeRegistry
 		tr.Register(encodable1{})
 		tr.Register(encodable2{})
 		tr.Register(encodable3([]byte{}))
 		tr.Register(encodable4{})
 		tr.Register(encodable5{})
+		tr.Register(encodable7{})
 		tr.Complete()
 		e1 := encodable1{1, 2}
 		buf := bytes.NewBuffer(nil)
@@ -154,6 +163,21 @@ func BasicTypeRegistrySpec(c gospec.Context) {
 		c.Assume(ok, gospec.Equals, true)
 		c.Expect(dec5.(ider).id(), gospec.Equals, 5)
 		c.Expect(string(d5.A), gospec.Equals, string(e5.A))
+
+		e7 := encodable7{
+			A: 1,
+			B: 2,
+		}
+		buf = bytes.NewBuffer(nil)
+		err = tr.Encode(e7, buf)
+		c.Assume(err, gospec.Equals, error(nil))
+		dec7, err := tr.Decode(buf)
+		c.Assume(err, gospec.Equals, error(nil))
+		d7, ok := dec7.(encodable7)
+		c.Assume(ok, gospec.Equals, true)
+		c.Expect(dec7.(ider).id(), gospec.Equals, 7)
+		c.Expect(string(d7.A), gospec.Equals, string(e7.A))
+		c.Expect(string(d7.B), gospec.Equals, string(e7.B))
 	})
 }
 

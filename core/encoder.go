@@ -76,6 +76,10 @@ func (tr *TypeRegistry) writeVal(writer io.Writer, v interface{}) error {
 		fallthrough
 	case reflect.Array:
 		err = binary.Write(writer, binary.LittleEndian, v)
+	case reflect.Int:
+		err = binary.Write(writer, binary.LittleEndian, val.Int())
+	case reflect.Uint:
+		err = binary.Write(writer, binary.LittleEndian, val.Uint())
 	case reflect.Slice:
 		err = binary.Write(writer, binary.LittleEndian, uint32(val.Len()))
 		if err != nil {
@@ -93,13 +97,9 @@ func (tr *TypeRegistry) writeVal(writer io.Writer, v interface{}) error {
 			break
 		}
 		err = binary.Write(writer, binary.LittleEndian, []byte(val.String()))
-		if err != nil {
-			break
-		}
 	case reflect.Struct:
 		n := typ.NumField()
 		for i := 0; i < n; i++ {
-			var err error
 			if typ.Field(i).Type.Kind() == reflect.Interface {
 				err = tr.Encode(val.Field(i).Interface(), writer)
 			} else {
@@ -156,6 +156,20 @@ func (tr *TypeRegistry) readVal(reader io.Reader, v interface{}) error {
 		fallthrough
 	case reflect.Array:
 		err = binary.Read(reader, binary.LittleEndian, v)
+	case reflect.Int:
+		var n int64
+		err = binary.Read(reader, binary.LittleEndian, &n)
+		if err != nil {
+			break
+		}
+		val.Elem().Set(reflect.ValueOf(int(n)))
+	case reflect.Uint:
+		var n uint64
+		err = binary.Read(reader, binary.LittleEndian, &n)
+		if err != nil {
+			break
+		}
+		val.Elem().Set(reflect.ValueOf(uint(n)))
 	case reflect.Slice:
 		var length uint32
 		err = binary.Read(reader, binary.LittleEndian, &length)
