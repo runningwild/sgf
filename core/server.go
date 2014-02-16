@@ -2,18 +2,23 @@ package core
 
 import (
 	"encoding/gob"
+	"fmt"
 	"github.com/runningwild/sluice"
 	"io"
 	"sync"
 )
 
+func init() {
+	fmt.Printf("")
+}
+
 type Game interface{}
 
 type Update interface {
-	ApplyUpdate(game *Game)
+	ApplyUpdate(game Game)
 }
 type Request interface {
-	ApplyRequest(game *Game) []Update
+	ApplyRequest(game Game) []Update
 }
 
 type completeGameState struct {
@@ -98,13 +103,18 @@ func MakeHost(addr string, port int) (*Host, error) {
 	return host, nil
 }
 
-func (host *Host) Start() {
-	host.GameRegistry.Complete()
-	host.RequestRegistry.Register(joinGameRequest{})
-	host.RequestRegistry.Complete()
-	host.UpdateRegistry.Register(completeGameState{})
-	host.UpdateRegistry.Complete()
-	go host.primaryRoutine()
+func (common *Common) Start() {
+	common.GameRegistry.Register(completeGameState{})
+	common.GameRegistry.Complete()
+	common.RequestRegistry.Register(joinGameRequest{})
+	common.RequestRegistry.Complete()
+	common.UpdateRegistry.Complete()
+}
+
+func (host *Host) Start(game Game) {
+	host.Game = game
+	host.Common.Start()
+	go host.handleRequestsAndUpdates()
 }
 
 func InfinitelyBufferUpdates(in <-chan Update, out chan<- Update) {
@@ -217,19 +227,6 @@ func (host *Host) handleRequestsAndUpdates() {
 	}
 }
 
-func (host *Host) primaryRoutine() {
-	for {
-		select {
-		// case request := <-host.Requests:
-		// 	updates := request.Apply(&host.Game)
-		// 	for _, update := range updates {
-		// 		update.Apply(&host.Game)
-		// 		host.MajorUpdatesEnc.Encode(update)
-		// 	}
-		}
-	}
-}
-
 type Client struct {
 	Common
 	Comm *sluice.Client
@@ -255,25 +252,46 @@ func MakeClient(addr string, port int) (*Client, error) {
 		RequestsChan:     make(chan Request),
 		RequestsEnc:      gob.NewEncoder(comm.GetWriter("Requests")),
 	}
+	return client, err
+}
+
+func (client *Client) Start() {
+	client.Common.Start()
+	err := client.RequestRegistry.Encode(joinGameRequest{}, client.Comm.GetWriter("Requests"))
+	if err != nil {
+		// TODO: Obviously don't panic
+		panic(err)
+	}
+	majorUpdatesChan := client.Comm.GetReadersChan("MajorUpdates")
+	majorUpdates := <-majorUpdatesChan
+	update, err := client.GameRegistry.Decode(majorUpdates)
+	if err != nil {
+		// TODO: Obviously don't panic
+		panic(err)
+	}
+	cgs, ok := update.(completeGameState)
+	if !ok {
+		// TODO: Obviously don't panic
+		panic("Not a completeGameState")
+	}
+	client.Game = cgs.Game
+
 	go client.primaryRoutine()
 
 	// This will launch go routines to collect all remote events that we can
 	// receive and send them all along the same channel.  All of the events
 	// will be contained in the same interface so this works fine.
 	for _, name := range []string{"MinorUpdates", "MajorUpdates"} {
-		go collector(client.Comm.GetReadersChan(name), client.AllRemoteUpdates)
+		go collector(&client.UpdateRegistry, client.Comm.GetReadersChan(name), client.AllRemoteUpdates)
 	}
 
-	return client, err
 }
 
-func collector(readers <-chan sluice.StreamReader, objs chan<- interface{}) {
+func collector(registry *TypeRegistry, readers <-chan sluice.StreamReader, objs chan<- interface{}) {
 	for reader := range readers {
 		go func(reader io.Reader) {
-			dec := gob.NewDecoder(reader)
 			for {
-				var obj interface{}
-				err := dec.Decode(&obj)
+				obj, err := registry.Decode(reader)
 				if err != nil {
 					// TODO: Grace
 					panic(err)

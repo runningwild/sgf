@@ -254,7 +254,7 @@ func (tr *TypeRegistry) Decode(reader io.Reader) (interface{}, error) {
 		return nil, err
 	}
 	if int(id) >= len(tr.types) {
-		return nil, fmt.Errorf("Invalid id: %d", id)
+		return nil, fmt.Errorf("TypeRegistry: Invalid id: %d", id)
 	}
 	t := tr.types[int(id)]
 	v := reflect.New(t)

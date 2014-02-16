@@ -12,6 +12,59 @@ type Game struct {
 type Player struct {
 	Pos int
 }
+type Advance struct {
+	Index  int
+	NewPos int
+}
+
+func (a Advance) ApplyRequest(_game core.Game) []core.Update {
+	game := _game.(*Game)
+	if a.Index < 0 || a.Index >= len(game.Players) {
+		return nil
+	}
+	return []core.Update{
+		Advance{
+			Index:  a.Index,
+			NewPos: game.Players[a.Index].Pos + 1,
+		},
+	}
+}
+func (a Advance) ApplyUpdate(_game core.Game) {
+	game := _game.(*Game)
+	if a.Index < 0 || a.Index >= len(game.Players) {
+		return
+	}
+	game.Players[a.Index].Pos = a.NewPos
+}
+
+// type Update interface {
+// 	Apply(game *Game)
+// }
+// type Request interface {
+// 	Apply(game *Game) []Update
+// }
+
+type registerer interface {
+	RegisterGame(interface{})
+	RegisterRequest(interface{})
+	RegisterUpdate(interface{})
+}
+
+func registerGameForAll(t interface{}, rs ...registerer) {
+	for _, r := range rs {
+		r.RegisterGame(t)
+	}
+}
+func registerRequestForAll(t interface{}, rs ...registerer) {
+	for _, r := range rs {
+		r.RegisterRequest(t)
+	}
+}
+func registerUpdateForAll(t interface{}, rs ...registerer) {
+	for _, r := range rs {
+		r.RegisterUpdate(t)
+	}
+}
 
 func SimpleServerSpec(c gospec.Context) {
 	c.Specify("Hook up all of the basic parts and make them talk.", func() {
@@ -19,8 +72,21 @@ func SimpleServerSpec(c gospec.Context) {
 		c.Assume(err, gospec.Equals, error(nil))
 		client0, err := core.MakeClient("127.0.0.1", 1234)
 		c.Assume(err, gospec.Equals, error(nil))
-		client1, err := core.MakeClient("127.0.0.1", 1234)
-		c.Assume(err, gospec.Equals, error(nil))
-		fmt.Printf("%v %v %v\n", host, client0, client1)
+		// client1, err := core.MakeClient("127.0.0.1", 1234)
+		// c.Assume(err, gospec.Equals, error(nil))
+		fmt.Printf("%v %v %v\n", host, client0)
+		registerGameForAll(Game{}, host, client0)
+		registerRequestForAll(Advance{}, host, client0)
+		registerUpdateForAll(Advance{}, host, client0)
+		game := Game{
+			Players: []Player{
+				Player{Pos: 1},
+				Player{Pos: 2},
+			},
+		}
+		host.Start(game)
+		client0.Start()
+		c.Expect(true, gospec.Equals, false)
+		// client1.Start()
 	})
 }

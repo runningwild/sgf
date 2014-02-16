@@ -3,7 +3,15 @@ package core_test
 import (
 	"github.com/orfjackal/gospec/src/gospec"
 	"testing"
+	"time"
 )
+
+func init() {
+	go func() {
+		time.Sleep(time.Second * 2)
+		panic("Late.")
+	}()
+}
 
 func TestAllSpecs(t *testing.T) {
 	r := gospec.NewRunner()
