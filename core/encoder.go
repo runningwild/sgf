@@ -81,7 +81,7 @@ func (tr *TypeRegistry) writeVal(writer io.Writer, v interface{}) error {
 	case reflect.Uint:
 		err = binary.Write(writer, binary.LittleEndian, val.Uint())
 	case reflect.Slice:
-		err = binary.Write(writer, binary.LittleEndian, uint32(val.Len()))
+		err = tr.writeVal(writer, uint32(val.Len()))
 		if err != nil {
 			break
 		}
@@ -178,7 +178,7 @@ func (tr *TypeRegistry) readVal(reader io.Reader, v interface{}) error {
 		}
 		src := reflect.MakeSlice(typ, int(length), int(length))
 		for i := 0; i < src.Len(); i++ {
-			err = binary.Read(reader, binary.LittleEndian, src.Index(i).Addr().Interface())
+			err = tr.readVal(reader, src.Index(i).Addr().Interface())
 			if err != nil {
 				break
 			}

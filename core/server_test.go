@@ -6,6 +6,13 @@ import (
 	"github.com/runningwild/sgf/core"
 )
 
+type Game struct {
+	Players []Player
+}
+type Player struct {
+	Pos int
+}
+
 func SimpleServerSpec(c gospec.Context) {
 	c.Specify("Hook up all of the basic parts and make them talk.", func() {
 		host, err := core.MakeHost("127.0.0.1", 1234)
