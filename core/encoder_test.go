@@ -57,6 +57,13 @@ type encodable8 struct {
 	B []uint
 }
 
+type encodable9 struct {
+	A ***e9sub
+}
+type e9sub struct {
+	B int32
+}
+
 func (b BarerImpl1) Bar() string {
 	return fmt.Sprintf("%d:%s", b.A, b.B)
 }
@@ -90,6 +97,9 @@ func (encodable7) id() int {
 func (encodable8) id() int {
 	return 8
 }
+func (encodable9) id() int {
+	return 9
+}
 
 type ider interface {
 	id() int
@@ -105,6 +115,7 @@ func BasicTypeRegistrySpec(c gospec.Context) {
 		tr.Register(encodable5{})
 		tr.Register(encodable7{})
 		tr.Register(encodable8{})
+		tr.Register(encodable9{})
 		tr.Complete()
 
 		c.Specify("Test that encoder handles int32.", func() {
@@ -216,6 +227,27 @@ func BasicTypeRegistrySpec(c gospec.Context) {
 			c.Expect(dec8.(ider).id(), gospec.Equals, 8)
 			c.Expect(fmt.Sprintf("%v", d8.A), gospec.Equals, fmt.Sprintf("%v", e8.A))
 			c.Expect(fmt.Sprintf("%v", d8.B), gospec.Equals, fmt.Sprintf("%v", e8.B))
+		})
+
+		c.Specify("Test that encoder handles pointers.", func() {
+			sub := e9sub{
+				B: 123,
+			}
+			psub := &sub
+			ppsub := &psub
+			e9 := encodable9{
+				A: &ppsub,
+			}
+			buf := bytes.NewBuffer(nil)
+			err := tr.Encode(e9, buf)
+			c.Assume(err, gospec.Equals, error(nil))
+			dec9, err := tr.Decode(buf)
+			c.Assume(err, gospec.Equals, error(nil))
+			d9, ok := dec9.(encodable9)
+			c.Assume(ok, gospec.Equals, true)
+			c.Expect(dec9.(ider).id(), gospec.Equals, 9)
+			c.Assume(d9.A, gospec.Not(gospec.Equals), (*e9sub)(nil))
+			c.Expect((**d9.A).B, gospec.Equals, (**e9.A).B)
 		})
 	})
 }

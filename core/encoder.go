@@ -47,6 +47,11 @@ func (tr *TypeRegistry) writeVal(writer io.Writer, v interface{}) error {
 	val := reflect.ValueOf(v)
 	typ := val.Type()
 	kind := typ.Kind()
+	for kind == reflect.Ptr {
+		val = val.Elem()
+		typ = val.Type()
+		kind = typ.Kind()
+	}
 	switch kind {
 	case reflect.Bool:
 		fallthrough
@@ -109,7 +114,8 @@ func (tr *TypeRegistry) writeVal(writer io.Writer, v interface{}) error {
 				break
 			}
 		}
-
+	case reflect.Ptr:
+		return fmt.Errorf("FUUUKKK")
 	default:
 		return fmt.Errorf("Can't write %v, not implemented.", typ)
 	}
@@ -127,6 +133,15 @@ func (tr *TypeRegistry) readVal(reader io.Reader, v interface{}) error {
 	}
 	typ := val.Elem().Type()
 	kind := typ.Kind()
+	deepness := 0
+	for kind == reflect.Ptr {
+		val.Elem().Set(reflect.New(typ.Elem()))
+		fmt.Printf("Diving into %v\n", typ)
+		val = val.Elem()
+		typ = val.Elem().Type()
+		kind = typ.Kind()
+		deepness++
+	}
 	switch kind {
 	case reflect.Bool:
 		fallthrough
@@ -237,6 +252,7 @@ func (tr *TypeRegistry) Encode(v interface{}, writer io.Writer) error {
 	if err != nil {
 		return err
 	}
+	fmt.Printf("Encoded: %v\n", tmp.Bytes())
 	_, err = writer.Write(tmp.Bytes())
 	if err != nil {
 		return err
