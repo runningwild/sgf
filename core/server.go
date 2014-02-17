@@ -1,7 +1,6 @@
 package core
 
 import (
-	"encoding/gob"
 	"fmt"
 	"github.com/runningwild/sluice"
 	"io"
@@ -172,10 +171,11 @@ func (host *Host) handleRequestsAndUpdates() {
 				// TODO: don't panic
 				panic("Not a join request.")
 			}
-			nodes = append(nodes, reader.NodeId())
 			go func(reader sluice.StreamReader) {
 				for {
+					fmt.Printf("Decoding...\n")
 					val, err := host.RequestRegistry.Decode(reader)
+					fmt.Printf("Decoded %T %v\n", val, val)
 					if err != nil {
 						// TODO: Obviously don't panic
 						panic(err)
@@ -195,14 +195,18 @@ func (host *Host) handleRequestsAndUpdates() {
 
 		case request := <-requestCollector:
 			host.GameMutex.Lock()
-			updates := request.ApplyRequest(&host.Game)
+			updates := request.ApplyRequest(host.Game)
 			host.GameMutex.Unlock()
+			fmt.Printf("Host: processing request...\n")
 			for _, update := range updates {
+				fmt.Printf("Host: sending major update...\n")
 				host.GameMutex.Lock()
-				update.ApplyUpdate(&host.Game)
+				update.ApplyUpdate(host.Game)
 				host.GameMutex.Unlock()
+				fmt.Printf("Recipients: %v\n", nodes)
 				for _, node := range nodes {
 					writer := host.Comm.GetDirectedWriter("MajorUpdates", node)
+					fmt.Printf("Sending update to %d\n", node)
 					err := host.UpdateRegistry.Encode(update, writer)
 					if err != nil {
 						// TODO: obviously don't panic
@@ -213,7 +217,7 @@ func (host *Host) handleRequestsAndUpdates() {
 
 		case update := <-host.majorUpdates:
 			host.GameMutex.Lock()
-			update.ApplyUpdate(&host.Game)
+			update.ApplyUpdate(host.Game)
 			host.GameMutex.Unlock()
 			for _, node := range nodes {
 				writer := host.Comm.GetDirectedWriter("MajorUpdates", node)
@@ -232,11 +236,8 @@ type Client struct {
 	Comm *sluice.Client
 
 	AllRemoteUpdates chan interface{}
-
 	MinorUpdatesChan chan Update
-	MinorUpdatesEnc  *gob.Encoder
 	RequestsChan     chan Request
-	RequestsEnc      *gob.Encoder
 }
 
 func MakeClient(addr string, port int) (*Client, error) {
@@ -248,9 +249,7 @@ func MakeClient(addr string, port int) (*Client, error) {
 		Comm:             comm,
 		AllRemoteUpdates: make(chan interface{}),
 		MinorUpdatesChan: make(chan Update),
-		MinorUpdatesEnc:  gob.NewEncoder(comm.GetWriter("MinorUpdates")),
 		RequestsChan:     make(chan Request),
-		RequestsEnc:      gob.NewEncoder(comm.GetWriter("Requests")),
 	}
 	return client, err
 }
@@ -284,21 +283,23 @@ func (client *Client) Start() {
 	for _, name := range []string{"MinorUpdates", "MajorUpdates"} {
 		go collector(&client.UpdateRegistry, client.Comm.GetReadersChan(name), client.AllRemoteUpdates)
 	}
+	go pipeThroughDecoder(&client.UpdateRegistry, majorUpdates, client.AllRemoteUpdates)
 
 }
 
 func collector(registry *TypeRegistry, readers <-chan sluice.StreamReader, objs chan<- interface{}) {
 	for reader := range readers {
-		go func(reader io.Reader) {
-			for {
-				obj, err := registry.Decode(reader)
-				if err != nil {
-					// TODO: Grace
-					panic(err)
-				}
-				objs <- obj
-			}
-		}(reader)
+		go pipeThroughDecoder(registry, reader, objs)
+	}
+}
+func pipeThroughDecoder(registry *TypeRegistry, reader io.Reader, objs chan<- interface{}) {
+	for {
+		obj, err := registry.Decode(reader)
+		if err != nil {
+			// TODO: Grace
+			panic(err)
+		}
+		objs <- obj
 	}
 }
 
@@ -306,18 +307,17 @@ func (c *Client) primaryRoutine() {
 	for {
 		select {
 		case update := <-c.AllRemoteUpdates:
-			update.(Update).ApplyUpdate(&c.Game)
+			fmt.Printf("Client received update: %v\n", update)
+			update.(Update).ApplyUpdate(c.Game)
+			fmt.Printf("Client Applied update: %v\n", c.Game)
 
 		case update := <-c.MinorUpdatesChan:
-			err := c.MinorUpdatesEnc.Encode(update)
-			if err != nil {
-				// TODO: Handle this more gracefully
-				panic(err)
-			}
-			update.ApplyUpdate(&c.Game)
+			c.UpdateRegistry.Encode(update, c.Comm.GetWriter("MinorUpdates"))
+			update.ApplyUpdate(c.Game)
 
 		case request := <-c.RequestsChan:
-			err := c.RequestsEnc.Encode(request)
+			fmt.Printf("Sending request: %T %v\n", request, request)
+			err := c.RequestRegistry.Encode(request, c.Comm.GetWriter("Requests"))
 			if err != nil {
 				// TODO: Handle this more gracefully
 				panic(err)

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/orfjackal/gospec/src/gospec"
 	"github.com/runningwild/sgf/core"
+	"time"
 )
 
 type Game struct {
@@ -18,10 +19,12 @@ type Advance struct {
 }
 
 func (a Advance) ApplyRequest(_game core.Game) []core.Update {
+	fmt.Printf("Advance: ApplyRequest\n")
 	game := _game.(*Game)
 	if a.Index < 0 || a.Index >= len(game.Players) {
 		return nil
 	}
+	fmt.Printf("Applied: %v\n", game)
 	return []core.Update{
 		Advance{
 			Index:  a.Index,
@@ -30,11 +33,13 @@ func (a Advance) ApplyRequest(_game core.Game) []core.Update {
 	}
 }
 func (a Advance) ApplyUpdate(_game core.Game) {
+	fmt.Printf("Advance: ApplyUpdate\n")
 	game := _game.(*Game)
 	if a.Index < 0 || a.Index >= len(game.Players) {
 		return
 	}
 	game.Players[a.Index].Pos = a.NewPos
+	fmt.Printf("Applied: %v\n", game)
 }
 
 // type Update interface {
@@ -72,13 +77,13 @@ func SimpleServerSpec(c gospec.Context) {
 		c.Assume(err, gospec.Equals, error(nil))
 		client0, err := core.MakeClient("127.0.0.1", 1234)
 		c.Assume(err, gospec.Equals, error(nil))
-		// client1, err := core.MakeClient("127.0.0.1", 1234)
-		// c.Assume(err, gospec.Equals, error(nil))
+		client1, err := core.MakeClient("127.0.0.1", 1234)
+		c.Assume(err, gospec.Equals, error(nil))
 		fmt.Printf("%v %v %v\n", host, client0)
-		registerGameForAll(Game{}, host, client0)
-		registerRequestForAll(Advance{}, host, client0)
-		registerUpdateForAll(Advance{}, host, client0)
-		game := Game{
+		registerGameForAll(&Game{}, host, client0, client1)
+		registerRequestForAll(Advance{}, host, client0, client1)
+		registerUpdateForAll(Advance{}, host, client0, client1)
+		game := &Game{
 			Players: []Player{
 				Player{Pos: 1},
 				Player{Pos: 2},
@@ -86,7 +91,21 @@ func SimpleServerSpec(c gospec.Context) {
 		}
 		host.Start(game)
 		client0.Start()
+		client1.Start()
+
+		client1.GameMutex.RLock()
+		fmt.Printf("game: %v\n", client1.Game)
+		client1.GameMutex.RUnlock()
+
+		adv := Advance{0, 2}
+		client0.MakeRequest(adv)
+		// client0.MakeMinorUpdate(adv)
+		time.Sleep(time.Millisecond * 100)
+
+		client1.GameMutex.RLock()
+		fmt.Printf("game: %v\n", client1.Game)
+		client1.GameMutex.RUnlock()
+
 		c.Expect(true, gospec.Equals, false)
-		// client1.Start()
 	})
 }
