@@ -105,6 +105,10 @@ func (tr *TypeRegistry) writeVal(writer io.Writer, v interface{}) error {
 	case reflect.Struct:
 		n := typ.NumField()
 		for i := 0; i < n; i++ {
+			if typ.Field(i).PkgPath != "" {
+				// This indicates an unexported field.
+				continue
+			}
 			if typ.Field(i).Type.Kind() == reflect.Interface {
 				err = tr.Encode(val.Field(i).Interface(), writer)
 			} else {
@@ -217,6 +221,10 @@ func (tr *TypeRegistry) readVal(reader io.Reader, v interface{}) error {
 	case reflect.Struct:
 		n := typ.NumField()
 		for i := 0; i < n; i++ {
+			if typ.Field(i).PkgPath != "" {
+				// This indicates an unexported field.
+				continue
+			}
 			err = tr.readVal(reader, val.Elem().Field(i).Addr().Interface())
 			if err != nil {
 				break

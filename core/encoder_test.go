@@ -64,6 +64,13 @@ type e9sub struct {
 	B int32
 }
 
+type encodable10 struct {
+	A int32
+	b int32
+	C string
+	d string
+}
+
 func (b BarerImpl1) Bar() string {
 	return fmt.Sprintf("%d:%s", b.A, b.B)
 }
@@ -100,6 +107,9 @@ func (encodable8) id() int {
 func (encodable9) id() int {
 	return 9
 }
+func (encodable10) id() int {
+	return 10
+}
 
 type ider interface {
 	id() int
@@ -116,6 +126,7 @@ func BasicTypeRegistrySpec(c gospec.Context) {
 		tr.Register(encodable7{})
 		tr.Register(encodable8{})
 		tr.Register(encodable9{})
+		tr.Register(encodable10{})
 		tr.Complete()
 
 		c.Specify("Test that encoder handles int32.", func() {
@@ -248,6 +259,27 @@ func BasicTypeRegistrySpec(c gospec.Context) {
 			c.Expect(dec9.(ider).id(), gospec.Equals, 9)
 			c.Assume(d9.A, gospec.Not(gospec.Equals), (*e9sub)(nil))
 			c.Expect((**d9.A).B, gospec.Equals, (**e9.A).B)
+		})
+
+		c.Specify("Test that encoder can ignore unexported fields.", func() {
+			e10 := encodable10{
+				A: 10,
+				b: 12,
+				C: "foo",
+				d: "bar",
+			}
+			buf := bytes.NewBuffer(nil)
+			err := tr.Encode(e10, buf)
+			c.Assume(err, gospec.Equals, error(nil))
+			dec10, err := tr.Decode(buf)
+			c.Assume(err, gospec.Equals, error(nil))
+			d10, ok := dec10.(encodable10)
+			c.Assume(ok, gospec.Equals, true)
+			c.Expect(dec10.(ider).id(), gospec.Equals, 10)
+			c.Expect(d10.A, gospec.Equals, e10.A)
+			c.Expect(d10.b, gospec.Equals, int32(0))
+			c.Expect(d10.C, gospec.Equals, e10.C)
+			c.Expect(d10.d, gospec.Equals, "")
 		})
 	})
 }
