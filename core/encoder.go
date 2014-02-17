@@ -140,7 +140,6 @@ func (tr *TypeRegistry) readVal(reader io.Reader, v interface{}) error {
 	deepness := 0
 	for kind == reflect.Ptr {
 		val.Elem().Set(reflect.New(typ.Elem()))
-		fmt.Printf("Diving into %v\n", typ)
 		val = val.Elem()
 		typ = val.Elem().Type()
 		kind = typ.Kind()
@@ -260,7 +259,6 @@ func (tr *TypeRegistry) Encode(v interface{}, writer io.Writer) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("Encoded: %v\n", tmp.Bytes())
 	_, err = writer.Write(tmp.Bytes())
 	if err != nil {
 		return err
