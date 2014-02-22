@@ -9,37 +9,83 @@ import (
 
 type Game struct {
 	Players []Player
+	myName  string
+	myIndex int
+	me      *Player
 }
 type Player struct {
-	Pos int
+	Name string
+	Node int
+	Pos  int
 }
 type Advance struct {
 	Index  int
 	NewPos int
 }
 
-func (a Advance) ApplyRequest(_game core.Game) []core.Update {
+func (g *Game) getIndex(node int, index int) int {
+	if node == -1 || node == 0 {
+		return index
+	}
+	for i := range g.Players {
+		if g.Players[i].Node == node {
+			return i
+		}
+	}
+	return -1
+}
+
+func (a Advance) ApplyRequest(node int, _game core.Game) []core.Update {
 	fmt.Printf("Advance: ApplyRequest\n")
 	game := _game.(*Game)
-	if a.Index < 0 || a.Index >= len(game.Players) {
+	a.Index = game.getIndex(node, a.Index)
+	if a.Index == -1 {
 		return nil
 	}
-	fmt.Printf("Applied: %v\n", game)
-	return []core.Update{
-		Advance{
-			Index:  a.Index,
-			NewPos: game.Players[a.Index].Pos + 1,
-		},
-	}
+	a.NewPos = game.Players[a.Index].Pos + 1
+	return []core.Update{a}
 }
-func (a Advance) ApplyUpdate(_game core.Game) {
-	fmt.Printf("Advance: ApplyUpdate\n")
+func (a Advance) ApplyUpdate(node int, _game core.Game) {
 	game := _game.(*Game)
-	if a.Index < 0 || a.Index >= len(game.Players) {
+	index := game.getIndex(node, a.Index)
+	if index == -1 {
 		return
 	}
-	game.Players[a.Index].Pos = a.NewPos
-	fmt.Printf("Applied: %v\n", game)
+	game.Players[index].Pos = a.NewPos
+}
+
+type Join struct {
+	Name string
+	Node int
+}
+
+func (j Join) ApplyRequest(node int, _game core.Game) []core.Update {
+	game := _game.(*Game)
+	if j.Name == "" {
+		return nil
+	}
+	j.Node = node
+	for _, player := range game.Players {
+		if player.Name == j.Name {
+			return nil
+		}
+	}
+	return []core.Update{j}
+}
+func (j Join) ApplyUpdate(node int, _game core.Game) {
+	game := _game.(*Game)
+	if j.Name == "" {
+		return
+	}
+	fmt.Printf("Join(%d): %v\n", node, j)
+	if node != 0 {
+		return
+	}
+	game.Players = append(game.Players, Player{j.Name, j.Node, 0})
+	if game.myName == j.Name {
+		game.myIndex = len(game.Players) - 1
+		game.me = &game.Players[game.myIndex]
+	}
 }
 
 // type Update interface {
@@ -83,28 +129,79 @@ func SimpleServerSpec(c gospec.Context) {
 		registerGameForAll(&Game{}, host, client0, client1)
 		registerRequestForAll(Advance{}, host, client0, client1)
 		registerUpdateForAll(Advance{}, host, client0, client1)
-		game := &Game{
-			Players: []Player{
-				Player{Pos: 1},
-				Player{Pos: 2},
-			},
-		}
+		registerRequestForAll(Join{}, host, client0, client1)
+		registerUpdateForAll(Join{}, host, client0, client1)
+		game := &Game{Players: []Player{}}
 		host.Start(game)
 		client0.Start()
 		client1.Start()
 
-		client1.GameMutex.RLock()
-		fmt.Printf("game: %v\n", client1.Game)
-		client1.GameMutex.RUnlock()
+		client0.GameMutex.Lock()
+		game0 := client0.Game.(*Game)
+		game0.myName = "foo"
+		client0.GameMutex.Unlock()
+		client0.MakeRequest(Join{Name: "foo"})
 
-		adv := Advance{0, 2}
-		client0.MakeRequest(adv)
-		// client0.MakeMinorUpdate(adv)
+		client1.GameMutex.Lock()
+		game1 := client1.Game.(*Game)
+		game1.myName = "bar"
+		client1.GameMutex.Unlock()
+		client1.MakeRequest(Join{Name: "bar"})
+
 		time.Sleep(time.Millisecond * 100)
 
+		client0.GameMutex.RLock()
+		fmt.Printf("game0: %v\n", client0.Game)
+		client0.GameMutex.RUnlock()
 		client1.GameMutex.RLock()
-		fmt.Printf("game: %v\n", client1.Game)
+		fmt.Printf("game1: %v\n", client1.Game)
 		client1.GameMutex.RUnlock()
+
+		incs := 1000
+		done := make(chan struct{})
+		for _, client := range []*core.Client{client0, client1} {
+			go func(client *core.Client) {
+				for i := 0; i < incs; i++ {
+					time.Sleep(time.Millisecond)
+					client.GameMutex.RLock()
+					g := client.Game.(*Game)
+					adv := Advance{g.myIndex, g.me.Pos + 1}
+					fmt.Printf("Request(%d): %d\n", i, adv.NewPos)
+					client.GameMutex.RUnlock()
+					client.MakeRequest(adv)
+					client.MakeMinorUpdate(adv)
+				}
+				done <- struct{}{}
+			}(client)
+		}
+
+		<-done
+		<-done
+		time.Sleep(time.Millisecond * 100)
+
+		client0.GameMutex.RLock()
+		fmt.Printf("game0: %v\n", client0.Game)
+		client0.GameMutex.RUnlock()
+		client1.GameMutex.RLock()
+		fmt.Printf("game1: %v\n", client1.Game)
+		client1.GameMutex.RUnlock()
+
+		// // for _, client := range []*core.Client{client0, client1} {
+
+		// // }
+
+		// client1.GameMutex.RLock()
+		// fmt.Printf("game: %v\n", client1.Game)
+		// client1.GameMutex.RUnlock()
+
+		// adv := Advance{0, 2}
+		// client0.MakeRequest(adv)
+		// // client0.MakeMinorUpdate(adv)
+		// time.Sleep(time.Millisecond * 100)
+
+		// client1.GameMutex.RLock()
+		// fmt.Printf("game: %v\n", client1.Game)
+		// client1.GameMutex.RUnlock()
 
 		c.Expect(true, gospec.Equals, false)
 	})

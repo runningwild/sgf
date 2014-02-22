@@ -14,10 +14,10 @@ func init() {
 type Game interface{}
 
 type Update interface {
-	ApplyUpdate(game Game)
+	ApplyUpdate(node int, game Game)
 }
 type Request interface {
-	ApplyRequest(game Game) []Update
+	ApplyRequest(node int, game Game) []Update
 }
 
 type completeGameState struct {
@@ -64,8 +64,7 @@ type Host struct {
 	Common
 	Comm *sluice.Host
 
-	majorUpdates          chan Update
-	majorUpdatesCollector chan Update
+	majorUpdates chan Update
 }
 
 func MakeHost(addr string, port int) (*Host, error) {
@@ -95,9 +94,8 @@ func MakeHost(addr string, port int) (*Host, error) {
 		return nil, err
 	}
 	host := &Host{
-		Comm:                  comm,
-		majorUpdates:          make(chan Update),
-		majorUpdatesCollector: make(chan Update),
+		Comm:         comm,
+		majorUpdates: make(chan Update),
 	}
 	return host, nil
 }
@@ -151,11 +149,19 @@ func InfinitelyBufferUpdates(in <-chan Update, out chan<- Update) {
 	}
 }
 
+type requestAndNode struct {
+	request Request
+	node    int
+}
+type updateAndNode struct {
+	update Update
+	node   int
+}
+
 func (host *Host) handleRequestsAndUpdates() {
 	newReaders := host.Comm.GetReadersChan("Requests")
-	requestCollector := make(chan Request)
+	requestCollector := make(chan requestAndNode)
 	var nodes []int
-	go InfinitelyBufferUpdates(host.majorUpdates, host.majorUpdatesCollector)
 	for {
 		select {
 		case reader := <-newReaders:
@@ -180,7 +186,7 @@ func (host *Host) handleRequestsAndUpdates() {
 						// TODO: Obviously don't panic
 						panic(err)
 					}
-					requestCollector <- val.(Request)
+					requestCollector <- requestAndNode{val.(Request), reader.NodeId()}
 				}
 			}(reader)
 
@@ -193,15 +199,15 @@ func (host *Host) handleRequestsAndUpdates() {
 			host.GameMutex.RUnlock()
 			nodes = append(nodes, reader.NodeId())
 
-		case request := <-requestCollector:
+		case ran := <-requestCollector:
 			host.GameMutex.Lock()
-			updates := request.ApplyRequest(host.Game)
+			updates := ran.request.ApplyRequest(ran.node, host.Game)
 			host.GameMutex.Unlock()
 			fmt.Printf("Host: processing request...\n")
 			for _, update := range updates {
 				fmt.Printf("Host: sending major update...\n")
 				host.GameMutex.Lock()
-				update.ApplyUpdate(host.Game)
+				update.ApplyUpdate(0, host.Game)
 				host.GameMutex.Unlock()
 				fmt.Printf("Recipients: %v\n", nodes)
 				for _, node := range nodes {
@@ -216,9 +222,6 @@ func (host *Host) handleRequestsAndUpdates() {
 			}
 
 		case update := <-host.majorUpdates:
-			host.GameMutex.Lock()
-			update.ApplyUpdate(host.Game)
-			host.GameMutex.Unlock()
 			for _, node := range nodes {
 				writer := host.Comm.GetDirectedWriter("MajorUpdates", node)
 				err := host.UpdateRegistry.Encode(update, writer)
@@ -231,11 +234,21 @@ func (host *Host) handleRequestsAndUpdates() {
 	}
 }
 
+// MakeMajorUpdate will apply the update to the local gamestate before returning
+// and will queue up the update to be sent to all clients on a reliable and
+// ordered channel.
+func (host *Host) MakeMajorUpdate(update Update) {
+	host.GameMutex.Lock()
+	update.ApplyUpdate(0, host.Game)
+	host.GameMutex.Unlock()
+	host.majorUpdates <- update
+}
+
 type Client struct {
 	Common
 	Comm *sluice.Client
 
-	AllRemoteUpdates chan interface{}
+	AllRemoteUpdates chan updateAndNode
 	MinorUpdatesChan chan Update
 	RequestsChan     chan Request
 }
@@ -247,7 +260,7 @@ func MakeClient(addr string, port int) (*Client, error) {
 	}
 	client := &Client{
 		Comm:             comm,
-		AllRemoteUpdates: make(chan interface{}),
+		AllRemoteUpdates: make(chan updateAndNode),
 		MinorUpdatesChan: make(chan Update),
 		RequestsChan:     make(chan Request),
 	}
@@ -283,37 +296,38 @@ func (client *Client) Start() {
 	for _, name := range []string{"MinorUpdates", "MajorUpdates"} {
 		go collector(&client.UpdateRegistry, client.Comm.GetReadersChan(name), client.AllRemoteUpdates)
 	}
-	go pipeThroughDecoder(&client.UpdateRegistry, majorUpdates, client.AllRemoteUpdates)
+	go pipeThroughDecoder(&client.UpdateRegistry, majorUpdates, majorUpdates.NodeId(), client.AllRemoteUpdates)
 
 }
 
-func collector(registry *TypeRegistry, readers <-chan sluice.StreamReader, objs chan<- interface{}) {
+func collector(registry *TypeRegistry, readers <-chan sluice.StreamReader, objs chan<- updateAndNode) {
 	for reader := range readers {
-		go pipeThroughDecoder(registry, reader, objs)
+		go pipeThroughDecoder(registry, reader, reader.NodeId(), objs)
 	}
 }
-func pipeThroughDecoder(registry *TypeRegistry, reader io.Reader, objs chan<- interface{}) {
+func pipeThroughDecoder(registry *TypeRegistry, reader io.Reader, node int, objs chan<- updateAndNode) {
 	for {
 		obj, err := registry.Decode(reader)
 		if err != nil {
 			// TODO: Grace
 			panic(err)
 		}
-		objs <- obj
+		objs <- updateAndNode{obj.(Update), node}
 	}
 }
 
 func (c *Client) primaryRoutine() {
 	for {
 		select {
-		case update := <-c.AllRemoteUpdates:
-			fmt.Printf("Client received update: %v\n", update)
-			update.(Update).ApplyUpdate(c.Game)
+		case uan := <-c.AllRemoteUpdates:
+			fmt.Printf("Client received update: %v\n", uan.update)
+			c.GameMutex.Lock()
+			uan.update.(Update).ApplyUpdate(uan.node, c.Game)
+			c.GameMutex.Unlock()
 			fmt.Printf("Client Applied update: %v\n", c.Game)
 
 		case update := <-c.MinorUpdatesChan:
 			c.UpdateRegistry.Encode(update, c.Comm.GetWriter("MinorUpdates"))
-			update.ApplyUpdate(c.Game)
 
 		case request := <-c.RequestsChan:
 			fmt.Printf("Sending request: %T %v\n", request, request)
@@ -326,9 +340,18 @@ func (c *Client) primaryRoutine() {
 	}
 }
 
+// MakeMinorUpdate will apply the update to the local gamestate before returning
+// and will queue up the update to be sent to all other clients on an unreliable
+// and unordered channel.
 func (c *Client) MakeMinorUpdate(update Update) {
+	c.GameMutex.Lock()
+	update.ApplyUpdate(-1, c.Game)
+	c.GameMutex.Unlock()
 	c.MinorUpdatesChan <- update
 }
+
+// MakeRequest will queue up request to be sent to the host on a reliable and
+// ordered channel.
 func (c *Client) MakeRequest(request Request) {
 	c.RequestsChan <- request
 }
