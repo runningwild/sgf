@@ -4,11 +4,12 @@ import (
 	"fmt"
 	"github.com/orfjackal/gospec/src/gospec"
 	"github.com/runningwild/sgf/core"
+	"sync"
 	"time"
 )
 
 type Game struct {
-	Players []Player
+	Players []*Player
 	myName  string
 	myIndex int
 	me      *Player
@@ -28,6 +29,7 @@ func (g *Game) getIndex(node int, index int) int {
 		return index
 	}
 	for i := range g.Players {
+		fmt.Printf("Checking agianst node %d\n", g.Players[i].Node)
 		if g.Players[i].Node == node {
 			return i
 		}
@@ -36,9 +38,9 @@ func (g *Game) getIndex(node int, index int) int {
 }
 
 func (a Advance) ApplyRequest(node int, _game core.Game) []core.Update {
-	fmt.Printf("Advance: ApplyRequest\n")
 	game := _game.(*Game)
 	a.Index = game.getIndex(node, a.Index)
+	fmt.Printf("AdvanceNode %d\n", node)
 	if a.Index == -1 {
 		return nil
 	}
@@ -51,7 +53,21 @@ func (a Advance) ApplyUpdate(node int, _game core.Game) {
 	if index == -1 {
 		return
 	}
-	game.Players[index].Pos = a.NewPos
+	fmt.Printf("Advance(%p): %d\n", game, node)
+	// Assume updates coming from a client are the most accurate, and if the
+	// update came from the host just make sure that our current value is close.
+	player := game.Players[index]
+	if node == 1 {
+		diff := player.Pos - a.NewPos
+		if diff < 0 {
+			diff = -diff
+		}
+		if diff < 3 {
+			fmt.Printf("Not applying on %s\n", game.myName)
+			return
+		}
+	}
+	player.Pos = a.NewPos
 }
 
 type Join struct {
@@ -77,14 +93,13 @@ func (j Join) ApplyUpdate(node int, _game core.Game) {
 	if j.Name == "" {
 		return
 	}
-	fmt.Printf("Join(%d): %v\n", node, j)
 	if node != 0 {
 		return
 	}
-	game.Players = append(game.Players, Player{j.Name, j.Node, 0})
+	game.Players = append(game.Players, &Player{j.Name, j.Node, 0})
 	if game.myName == j.Name {
 		game.myIndex = len(game.Players) - 1
-		game.me = &game.Players[game.myIndex]
+		game.me = game.Players[game.myIndex]
 	}
 }
 
@@ -131,7 +146,7 @@ func SimpleServerSpec(c gospec.Context) {
 		registerUpdateForAll(Advance{}, host, client0, client1)
 		registerRequestForAll(Join{}, host, client0, client1)
 		registerUpdateForAll(Join{}, host, client0, client1)
-		game := &Game{Players: []Player{}}
+		game := &Game{}
 		host.Start(game)
 		client0.Start()
 		client1.Start()
@@ -157,33 +172,38 @@ func SimpleServerSpec(c gospec.Context) {
 		fmt.Printf("game1: %v\n", client1.Game)
 		client1.GameMutex.RUnlock()
 
-		incs := 1000
-		done := make(chan struct{})
+		incs := 10
+		var wg sync.WaitGroup
 		for _, client := range []*core.Client{client0, client1} {
+			wg.Add(1)
 			go func(client *core.Client) {
 				for i := 0; i < incs; i++ {
 					time.Sleep(time.Millisecond)
 					client.GameMutex.RLock()
 					g := client.Game.(*Game)
 					adv := Advance{g.myIndex, g.me.Pos + 1}
-					fmt.Printf("Request(%d): %d\n", i, adv.NewPos)
+					fmt.Printf("Request(%d, %d): %v -> %d\n", i, g.myIndex, *g.me, adv.NewPos)
 					client.GameMutex.RUnlock()
 					client.MakeRequest(adv)
 					client.MakeMinorUpdate(adv)
 				}
-				done <- struct{}{}
+				wg.Done()
 			}(client)
 		}
-
-		<-done
-		<-done
+		wg.Wait()
 		time.Sleep(time.Millisecond * 100)
 
 		client0.GameMutex.RLock()
 		fmt.Printf("game0: %v\n", client0.Game)
+		for _, player := range client0.Game.(*Game).Players {
+			fmt.Printf("Player: %v\n", *player)
+		}
 		client0.GameMutex.RUnlock()
 		client1.GameMutex.RLock()
 		fmt.Printf("game1: %v\n", client1.Game)
+		for _, player := range client1.Game.(*Game).Players {
+			fmt.Printf("Player: %v\n", *player)
+		}
 		client1.GameMutex.RUnlock()
 
 		// // for _, client := range []*core.Client{client0, client1} {

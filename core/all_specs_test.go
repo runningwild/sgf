@@ -8,7 +8,7 @@ import (
 
 func init() {
 	go func() {
-		time.Sleep(time.Second * 2)
+		time.Sleep(time.Second * 20)
 		panic("Late.")
 	}()
 }

@@ -14,6 +14,9 @@ func init() {
 type Game interface{}
 
 type Update interface {
+	// ApplyUpdate can modify the game state.  node will be -1 if the request
+	// came from this client, 0 if it came from the host, and otherwise it will
+	// be the sluice node of the client that it came from.
 	ApplyUpdate(node int, game Game)
 }
 type Request interface {
@@ -203,7 +206,7 @@ func (host *Host) handleRequestsAndUpdates() {
 			host.GameMutex.Lock()
 			updates := ran.request.ApplyRequest(ran.node, host.Game)
 			host.GameMutex.Unlock()
-			fmt.Printf("Host: processing request...\n")
+			fmt.Printf("Host: processing request, %d updates...\n", len(updates))
 			for _, update := range updates {
 				fmt.Printf("Host: sending major update...\n")
 				host.GameMutex.Lock()
@@ -239,7 +242,7 @@ func (host *Host) handleRequestsAndUpdates() {
 // ordered channel.
 func (host *Host) MakeMajorUpdate(update Update) {
 	host.GameMutex.Lock()
-	update.ApplyUpdate(0, host.Game)
+	update.ApplyUpdate(-2, host.Game)
 	host.GameMutex.Unlock()
 	host.majorUpdates <- update
 }
@@ -320,11 +323,11 @@ func (c *Client) primaryRoutine() {
 	for {
 		select {
 		case uan := <-c.AllRemoteUpdates:
-			fmt.Printf("Client received update: %v\n", uan.update)
+			fmt.Printf("Client received update: %T %d", uan.update, uan.node)
 			c.GameMutex.Lock()
 			uan.update.(Update).ApplyUpdate(uan.node, c.Game)
 			c.GameMutex.Unlock()
-			fmt.Printf("Client Applied update: %v\n", c.Game)
+			fmt.Printf("Client Applied update: %v -> %v\n", uan.update, c.Game)
 
 		case update := <-c.MinorUpdatesChan:
 			c.UpdateRegistry.Encode(update, c.Comm.GetWriter("MinorUpdates"))
