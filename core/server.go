@@ -2,6 +2,7 @@ package core
 
 import (
 	"fmt"
+	"github.com/runningwild/sgf/types"
 	"github.com/runningwild/sluice"
 	"io"
 	"sync"
@@ -11,32 +12,20 @@ func init() {
 	fmt.Printf("")
 }
 
-type Game interface{}
-
-type Update interface {
-	// ApplyUpdate can modify the game state.  node will be -1 if the request
-	// came from this client, 0 if it came from the host, and otherwise it will
-	// be the sluice node of the client that it came from.
-	ApplyUpdate(node int, game Game)
-}
-type Request interface {
-	ApplyRequest(node int, game Game) []Update
-}
-
 type completeGameState struct {
-	Game Game
+	Game types.Game
 }
 
-func (cgs completeGameState) Apply(game *Game) {
+func (cgs completeGameState) Apply(game *types.Game) {
 	*game = cgs.Game
 }
 
 type joinGameRequest struct{}
 
-func (joinGameRequest) Apply(game *Game) []Update { return nil }
+func (joinGameRequest) Apply(game *types.Game) []types.Update { return nil }
 
 type Common struct {
-	Game      Game
+	Game      types.Game
 	GameMutex sync.RWMutex
 
 	GameRegistry    TypeRegistry
@@ -45,19 +34,19 @@ type Common struct {
 }
 
 func (c *Common) RegisterGame(t interface{}) {
-	if _, ok := t.(Game); !ok {
+	if _, ok := t.(types.Game); !ok {
 		panic("RegisterGame() can only be called with values of type Game.")
 	}
 	c.GameRegistry.Register(t)
 }
 func (c *Common) RegisterRequest(t interface{}) {
-	if _, ok := t.(Request); !ok {
+	if _, ok := t.(types.Request); !ok {
 		panic("RegisterRequest() can only be called with values of type Request.")
 	}
 	c.RequestRegistry.Register(t)
 }
 func (c *Common) RegisterUpdate(t interface{}) {
-	if _, ok := t.(Update); !ok {
+	if _, ok := t.(types.Update); !ok {
 		panic("RegisterUpdate() can only be called with values of type Update.")
 	}
 	c.UpdateRegistry.Register(t)
@@ -67,7 +56,7 @@ type Host struct {
 	Common
 	Comm *sluice.Host
 
-	majorUpdates chan Update
+	majorUpdates chan types.Update
 }
 
 func MakeHost(addr string, port int) (*Host, error) {
@@ -98,7 +87,7 @@ func MakeHost(addr string, port int) (*Host, error) {
 	}
 	host := &Host{
 		Comm:         comm,
-		majorUpdates: make(chan Update),
+		majorUpdates: make(chan types.Update),
 	}
 	return host, nil
 }
@@ -111,16 +100,16 @@ func (common *Common) Start() {
 	common.UpdateRegistry.Complete()
 }
 
-func (host *Host) Start(game Game) {
+func (host *Host) Start(game types.Game) {
 	host.Game = game
 	host.Common.Start()
 	go host.handleRequestsAndUpdates()
 }
 
-func InfinitelyBufferUpdates(in <-chan Update, out chan<- Update) {
-	var updates []Update
-	var nextUpdate Update
-	var send chan<- Update
+func InfinitelyBufferUpdates(in <-chan types.Update, out chan<- types.Update) {
+	var updates []types.Update
+	var nextUpdate types.Update
+	var send chan<- types.Update
 	for {
 		select {
 		case update, ok := <-in:
@@ -153,11 +142,11 @@ func InfinitelyBufferUpdates(in <-chan Update, out chan<- Update) {
 }
 
 type requestAndNode struct {
-	request Request
+	request types.Request
 	node    int
 }
 type updateAndNode struct {
-	update Update
+	update types.Update
 	node   int
 }
 
@@ -189,7 +178,7 @@ func (host *Host) handleRequestsAndUpdates() {
 						// TODO: Obviously don't panic
 						panic(err)
 					}
-					requestCollector <- requestAndNode{val.(Request), reader.NodeId()}
+					requestCollector <- requestAndNode{val.(types.Request), reader.NodeId()}
 				}
 			}(reader)
 
@@ -240,7 +229,7 @@ func (host *Host) handleRequestsAndUpdates() {
 // MakeMajorUpdate will apply the update to the local gamestate before returning
 // and will queue up the update to be sent to all clients on a reliable and
 // ordered channel.
-func (host *Host) MakeMajorUpdate(update Update) {
+func (host *Host) MakeMajorUpdate(update types.Update) {
 	host.GameMutex.Lock()
 	update.ApplyUpdate(-2, host.Game)
 	host.GameMutex.Unlock()
@@ -252,8 +241,8 @@ type Client struct {
 	Comm *sluice.Client
 
 	AllRemoteUpdates chan updateAndNode
-	MinorUpdatesChan chan Update
-	RequestsChan     chan Request
+	MinorUpdatesChan chan types.Update
+	RequestsChan     chan types.Request
 }
 
 func MakeClient(addr string, port int) (*Client, error) {
@@ -264,8 +253,8 @@ func MakeClient(addr string, port int) (*Client, error) {
 	client := &Client{
 		Comm:             comm,
 		AllRemoteUpdates: make(chan updateAndNode),
-		MinorUpdatesChan: make(chan Update),
-		RequestsChan:     make(chan Request),
+		MinorUpdatesChan: make(chan types.Update),
+		RequestsChan:     make(chan types.Request),
 	}
 	return client, err
 }
@@ -315,7 +304,7 @@ func pipeThroughDecoder(registry *TypeRegistry, reader io.Reader, node int, objs
 			// TODO: Grace
 			panic(err)
 		}
-		objs <- updateAndNode{obj.(Update), node}
+		objs <- updateAndNode{obj.(types.Update), node}
 	}
 }
 
@@ -325,7 +314,7 @@ func (c *Client) primaryRoutine() {
 		case uan := <-c.AllRemoteUpdates:
 			fmt.Printf("Client received update: %T %d", uan.update, uan.node)
 			c.GameMutex.Lock()
-			uan.update.(Update).ApplyUpdate(uan.node, c.Game)
+			uan.update.(types.Update).ApplyUpdate(uan.node, c.Game)
 			c.GameMutex.Unlock()
 			fmt.Printf("Client Applied update: %v -> %v\n", uan.update, c.Game)
 
@@ -346,7 +335,7 @@ func (c *Client) primaryRoutine() {
 // MakeMinorUpdate will apply the update to the local gamestate before returning
 // and will queue up the update to be sent to all other clients on an unreliable
 // and unordered channel.
-func (c *Client) MakeMinorUpdate(update Update) {
+func (c *Client) MakeMinorUpdate(update types.Update) {
 	c.GameMutex.Lock()
 	update.ApplyUpdate(-1, c.Game)
 	c.GameMutex.Unlock()
@@ -355,6 +344,6 @@ func (c *Client) MakeMinorUpdate(update Update) {
 
 // MakeRequest will queue up request to be sent to the host on a reliable and
 // ordered channel.
-func (c *Client) MakeRequest(request Request) {
+func (c *Client) MakeRequest(request types.Request) {
 	c.RequestsChan <- request
 }

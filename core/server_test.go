@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/orfjackal/gospec/src/gospec"
 	"github.com/runningwild/sgf/core"
+	"github.com/runningwild/sgf/types"
 	"sync"
 	"time"
 )
@@ -37,7 +38,7 @@ func (g *Game) getIndex(node int, index int) int {
 	return -1
 }
 
-func (a Advance) ApplyRequest(node int, _game core.Game) []core.Update {
+func (a Advance) ApplyRequest(node int, _game types.Game) []types.Update {
 	game := _game.(*Game)
 	a.Index = game.getIndex(node, a.Index)
 	fmt.Printf("AdvanceNode %d\n", node)
@@ -45,9 +46,9 @@ func (a Advance) ApplyRequest(node int, _game core.Game) []core.Update {
 		return nil
 	}
 	a.NewPos = game.Players[a.Index].Pos + 1
-	return []core.Update{a}
+	return []types.Update{a}
 }
-func (a Advance) ApplyUpdate(node int, _game core.Game) {
+func (a Advance) ApplyUpdate(node int, _game types.Game) {
 	game := _game.(*Game)
 	index := game.getIndex(node, a.Index)
 	if index == -1 {
@@ -75,7 +76,7 @@ type Join struct {
 	Node int
 }
 
-func (j Join) ApplyRequest(node int, _game core.Game) []core.Update {
+func (j Join) ApplyRequest(node int, _game types.Game) []types.Update {
 	game := _game.(*Game)
 	if j.Name == "" {
 		return nil
@@ -86,9 +87,9 @@ func (j Join) ApplyRequest(node int, _game core.Game) []core.Update {
 			return nil
 		}
 	}
-	return []core.Update{j}
+	return []types.Update{j}
 }
-func (j Join) ApplyUpdate(node int, _game core.Game) {
+func (j Join) ApplyUpdate(node int, _game types.Game) {
 	game := _game.(*Game)
 	if j.Name == "" {
 		return

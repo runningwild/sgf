@@ -1,29 +1,25 @@
 package sgf
 
-type Game interface {
-	HostThink()
-	ClientThink()
-}
+import (
+	"github.com/runningwild/sgf/core"
+)
 
-// MinorEvent
-// MajorEvent
-// Request
-type MinorUpdate interface {
-	Apply(game Game)
+// These are copied from core
+
+type Game interface{}
+type Update interface {
+	// ApplyUpdate can modify the game state.  node will be -1 if the request
+	// came from this client, 0 if it came from the host, and otherwise it will
+	// be the sluice node of the client that it came from.
+	ApplyUpdate(node int, game Game)
 }
-type MajorUpdate interface {
-	Apply(game Game)
-}
-type MinorRequest interface {
-	Apply(game Game)
-}
-type MajorRequest interface {
-	Apply(game Game)
+type Request interface {
+	ApplyRequest(node int, game Game) []Update
 }
 
 type Engine struct{}
 
-func (e *Engine) SendRequest(request Request) {}
+func (e *Engine) SendRequest(request core.Request) {}
 
 // This is a Read-Lock, so multiple go-routines can all Pause() simultaneously.
 func (e *Engine) Pause() {}
