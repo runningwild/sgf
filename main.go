@@ -6,9 +6,9 @@ import (
 )
 
 type Engine interface {
-	RegisterGame(interface{})
-	RegisterUpdate(interface{})
-	RegisterRequest(interface{})
+	RegisterGame(v interface{})
+	RegisterUpdate(v interface{})
+	RegisterRequest(v interface{})
 	RLock()
 	RUnlock()
 	Game() types.Game
@@ -16,7 +16,7 @@ type Engine interface {
 
 type HostEngine interface {
 	Engine
-	Start(types.Game)
+	Start(initialState types.Game)
 }
 
 type host struct {
