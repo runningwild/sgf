@@ -182,6 +182,10 @@ func SimpleServerSpec(c gospec.Context) {
 					time.Sleep(time.Millisecond)
 					client.GameMutex.RLock()
 					g := client.Game.(*Game)
+					if g.me == nil {
+						client.GameMutex.RUnlock()
+						continue
+					}
 					adv := Advance{g.myIndex, g.me.Pos + 1}
 					fmt.Printf("Request(%d, %d): %v -> %d\n", i, g.myIndex, *g.me, adv.NewPos)
 					client.GameMutex.RUnlock()

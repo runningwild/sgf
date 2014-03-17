@@ -2,41 +2,70 @@ package sgf
 
 import (
 	"github.com/runningwild/sgf/core"
+	"github.com/runningwild/sgf/types"
 )
 
-// These are copied from core
-
-type Game interface{}
-type Update interface {
-	// ApplyUpdate can modify the game state.  node will be -1 if the request
-	// came from this client, 0 if it came from the host, and otherwise it will
-	// be the sluice node of the client that it came from.
-	ApplyUpdate(node int, game Game)
-}
-type Request interface {
-	ApplyRequest(node int, game Game) []Update
+type Engine interface {
+	RegisterGame(interface{})
+	RegisterUpdate(interface{})
+	RegisterRequest(interface{})
+	RLock()
+	RUnlock()
+	Game() types.Game
 }
 
-type Engine struct{}
+type HostEngine interface {
+	Engine
+	Start(types.Game)
+}
 
-func (e *Engine) SendRequest(request core.Request) {}
+type host struct {
+	*core.Host
+}
 
-// This is a Read-Lock, so multiple go-routines can all Pause() simultaneously.
-func (e *Engine) Pause() {}
+func MakeHost(addr string, port int) (HostEngine, error) {
+	coreHost, err := core.MakeHost(addr, port)
+	if err != nil {
+		return nil, err
+	}
+	var h host
+	h.Host = coreHost
+	return &h, nil
+}
+func (h *host) RLock() {
+	h.Host.GameMutex.RLock()
+}
+func (h *host) RUnlock() {
+	h.Host.GameMutex.RUnlock()
+}
+func (h *host) Game() types.Game {
+	return h.Host.Game
+}
 
-func (e *Engine) Unpause() {}
+type ClientEngine interface {
+	Engine
+	Start()
+}
 
-func (e *Engine) GetState() Game {}
+type Client struct {
+	*core.Client
+}
 
-// Returns the Id of this engine.  Every engine connected in a game has a unique
-// id.
-func (e *Engine) Id() int64 {}
-
-// If this is the Host engine this function will return a list of the ids of all
-// engines currently connected, including this engine.  If this is a client
-// engine this function will return nil.
-func (e *Engine) Ids() []int64 {}
-
-func (e *Engine) IsHost() bool {}
-
-func (e *Engine) Kill() {}
+func MakeClient(addr string, port int) (ClientEngine, error) {
+	coreClient, err := core.MakeClient(addr, port)
+	if err != nil {
+		return nil, err
+	}
+	var c Client
+	c.Client = coreClient
+	return &c, nil
+}
+func (c *Client) RLock() {
+	c.Client.GameMutex.RLock()
+}
+func (c *Client) RUnlock() {
+	c.Client.GameMutex.RUnlock()
+}
+func (c *Client) Game() types.Game {
+	return c.Client.Game
+}
