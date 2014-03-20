@@ -334,7 +334,7 @@ func (c *Client) primaryRoutine() {
 
 // MakeMinorUpdate will apply the update to the local gamestate before returning
 // and will queue up the update to be sent to all other clients on an unreliable
-// and unordered channel.
+// and ordered channel.
 func (c *Client) MakeMinorUpdate(update types.Update) {
 	c.GameMutex.Lock()
 	update.ApplyUpdate(-1, c.Game)

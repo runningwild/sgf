@@ -17,6 +17,7 @@ type Engine interface {
 type HostEngine interface {
 	Engine
 	Start(initialState types.Game)
+	MakeMajorUpdate(update types.Update)
 }
 
 type host struct {
@@ -45,6 +46,8 @@ func (h *host) Game() types.Game {
 type ClientEngine interface {
 	Engine
 	Start()
+	MakeMinorUpdate(update types.Update)
+	MakeRequest(request types.Request)
 }
 
 type Client struct {

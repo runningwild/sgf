@@ -43,6 +43,7 @@ func (tr *TypeRegistry) Complete() {
 	}
 }
 func (tr *TypeRegistry) writeVal(writer io.Writer, v interface{}) error {
+	fmt.Printf("writeVal: %T %v\n", v, v)
 	var err error
 	val := reflect.ValueOf(v)
 	typ := val.Type()
@@ -108,6 +109,15 @@ func (tr *TypeRegistry) writeVal(writer io.Writer, v interface{}) error {
 			if typ.Field(i).PkgPath != "" {
 				// This indicates an unexported field.
 				continue
+			}
+			kind := typ.Field(i).Type.Kind()
+			if kind == reflect.Interface || kind == reflect.Map || kind == reflect.Ptr || kind == reflect.Slice {
+				if val.Field(i).IsNil() {
+					binary.Write(writer, binary.LittleEndian, byte(1))
+					continue
+				} else {
+					binary.Write(writer, binary.LittleEndian, byte(0))
+				}
 			}
 			if typ.Field(i).Type.Kind() == reflect.Interface {
 				err = tr.Encode(val.Field(i).Interface(), writer)
@@ -223,6 +233,14 @@ func (tr *TypeRegistry) readVal(reader io.Reader, v interface{}) error {
 			if typ.Field(i).PkgPath != "" {
 				// This indicates an unexported field.
 				continue
+			}
+			kind := typ.Field(i).Type.Kind()
+			if kind == reflect.Interface || kind == reflect.Map || kind == reflect.Ptr || kind == reflect.Slice {
+				var isNil byte
+				binary.Read(reader, binary.LittleEndian, &isNil)
+				if isNil == 1 {
+					continue
+				}
 			}
 			err = tr.readVal(reader, val.Elem().Field(i).Addr().Interface())
 			if err != nil {

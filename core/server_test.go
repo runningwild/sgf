@@ -228,6 +228,6 @@ func SimpleServerSpec(c gospec.Context) {
 		// fmt.Printf("game: %v\n", client1.Game)
 		// client1.GameMutex.RUnlock()
 
-		c.Expect(true, gospec.Equals, false)
+		// c.Expect(true, gospec.Equals, false)
 	})
 }
