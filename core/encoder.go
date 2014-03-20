@@ -43,7 +43,6 @@ func (tr *TypeRegistry) Complete() {
 	}
 }
 func (tr *TypeRegistry) writeVal(writer io.Writer, v interface{}) error {
-	fmt.Printf("writeVal: %T %v\n", v, v)
 	var err error
 	val := reflect.ValueOf(v)
 	typ := val.Type()
@@ -190,14 +189,14 @@ func (tr *TypeRegistry) readVal(reader io.Reader, v interface{}) error {
 		if err != nil {
 			break
 		}
-		val.Elem().Set(reflect.ValueOf(int(n)))
+		val.Elem().SetInt(n)
 	case reflect.Uint:
 		var n uint64
 		err = binary.Read(reader, binary.LittleEndian, &n)
 		if err != nil {
 			break
 		}
-		val.Elem().Set(reflect.ValueOf(uint(n)))
+		val.Elem().SetUint(n)
 	case reflect.Slice:
 		var length uint32
 		err = binary.Read(reader, binary.LittleEndian, &length)

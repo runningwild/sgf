@@ -82,6 +82,13 @@ type e11sub1 struct {
 }
 type e11sub2 struct{}
 
+type encodable12 struct {
+	A LooksLikeAnInt
+	B LooksLikeAUInt
+}
+type LooksLikeAnInt int
+type LooksLikeAUInt uint
+
 func (b BarerImpl1) Bar() string {
 	return fmt.Sprintf("%d:%s", b.A, b.B)
 }
@@ -124,6 +131,9 @@ func (encodable10) id() int {
 func (encodable11) id() int {
 	return 11
 }
+func (encodable12) id() int {
+	return 12
+}
 
 type ider interface {
 	id() int
@@ -142,6 +152,7 @@ func BasicTypeRegistrySpec(c gospec.Context) {
 		tr.Register(encodable9{})
 		tr.Register(encodable10{})
 		tr.Register(encodable11{})
+		tr.Register(encodable12{})
 		tr.Complete()
 
 		c.Specify("Test that encoder handles int32.", func() {
@@ -310,6 +321,20 @@ func BasicTypeRegistrySpec(c gospec.Context) {
 			c.Expect(d11.A, gospec.Equals, (*e11sub1)(nil))
 			c.Expect(d11.B, gospec.Equals, (*e11sub2)(nil))
 			c.Expect(d11.C, gospec.Equals, (Barer)(nil))
+		})
+
+		c.Specify("Test that encoder can handle aliased primitives.", func() {
+			e12 := encodable12{A: 123, B: 456}
+			buf := bytes.NewBuffer(nil)
+			err := tr.Encode(e12, buf)
+			c.Assume(err, gospec.Equals, error(nil))
+			dec12, err := tr.Decode(buf)
+			c.Assume(err, gospec.Equals, error(nil))
+			d12, ok := dec12.(encodable12)
+			c.Assume(ok, gospec.Equals, true)
+			c.Expect(dec12.(ider).id(), gospec.Equals, 12)
+			c.Expect(d12.A, gospec.Equals, (LooksLikeAnInt)(123))
+			c.Expect(d12.B, gospec.Equals, (LooksLikeAUInt)(456))
 		})
 	})
 }
