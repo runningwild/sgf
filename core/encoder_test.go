@@ -89,6 +89,16 @@ type encodable12 struct {
 type LooksLikeAnInt int
 type LooksLikeAUInt uint
 
+type encodable13 struct {
+	A []*int
+	B []*int
+}
+
+type encodable14 struct {
+	A bool
+	B bool
+}
+
 func (b BarerImpl1) Bar() string {
 	return fmt.Sprintf("%d:%s", b.A, b.B)
 }
@@ -134,6 +144,12 @@ func (encodable11) id() int {
 func (encodable12) id() int {
 	return 12
 }
+func (encodable13) id() int {
+	return 13
+}
+func (encodable14) id() int {
+	return 14
+}
 
 type ider interface {
 	id() int
@@ -153,6 +169,8 @@ func BasicTypeRegistrySpec(c gospec.Context) {
 		tr.Register(encodable10{})
 		tr.Register(encodable11{})
 		tr.Register(encodable12{})
+		tr.Register(encodable13{})
+		tr.Register(encodable14{})
 		tr.Complete()
 
 		c.Specify("Test that encoder handles int32.", func() {
@@ -335,6 +353,45 @@ func BasicTypeRegistrySpec(c gospec.Context) {
 			c.Expect(dec12.(ider).id(), gospec.Equals, 12)
 			c.Expect(d12.A, gospec.Equals, (LooksLikeAnInt)(123))
 			c.Expect(d12.B, gospec.Equals, (LooksLikeAUInt)(456))
+		})
+
+		c.Specify("Test that encoder can handle slices of nil values.", func() {
+			ints := make([]*int, 5)
+			for i := range ints {
+				n := i
+				ints[i] = &n
+			}
+			e13 := encodable13{A: make([]*int, 5), B: ints}
+			buf := bytes.NewBuffer(nil)
+			err := tr.Encode(e13, buf)
+			c.Assume(err, gospec.Equals, error(nil))
+			dec13, err := tr.Decode(buf)
+			c.Assume(err, gospec.Equals, error(nil))
+			d13, ok := dec13.(encodable13)
+			c.Assume(ok, gospec.Equals, true)
+			c.Expect(dec13.(ider).id(), gospec.Equals, 13)
+			c.Expect(len(d13.A), gospec.Equals, len(e13.A))
+			for i := range d13.A {
+				c.Expect(d13.A[i], gospec.Equals, e13.A[i])
+			}
+			c.Expect(len(d13.B), gospec.Equals, len(e13.B))
+			for i := range d13.B {
+				c.Expect(*d13.B[i], gospec.Equals, *e13.B[i])
+			}
+		})
+
+		c.Specify("Test that encoder can handle bools.", func() {
+			e14 := encodable14{A: true, B: false}
+			buf := bytes.NewBuffer(nil)
+			err := tr.Encode(e14, buf)
+			c.Assume(err, gospec.Equals, error(nil))
+			dec14, err := tr.Decode(buf)
+			c.Assume(err, gospec.Equals, error(nil))
+			d14, ok := dec14.(encodable14)
+			c.Assume(ok, gospec.Equals, true)
+			c.Expect(dec14.(ider).id(), gospec.Equals, 14)
+			c.Expect(d14.A, gospec.Equals, e14.A)
+			c.Expect(d14.B, gospec.Equals, e14.B)
 		})
 	})
 }

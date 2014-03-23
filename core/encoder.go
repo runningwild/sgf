@@ -48,13 +48,23 @@ func (tr *TypeRegistry) writeVal(writer io.Writer, v interface{}) error {
 	typ := val.Type()
 	kind := typ.Kind()
 	for kind == reflect.Ptr {
+		if val.IsNil() {
+			binary.Write(writer, binary.LittleEndian, byte(0))
+			return nil
+		} else {
+			binary.Write(writer, binary.LittleEndian, byte(1))
+		}
 		val = val.Elem()
 		typ = val.Type()
 		kind = typ.Kind()
 	}
 	switch kind {
 	case reflect.Bool:
-		fallthrough
+		if val.Bool() {
+			binary.Write(writer, binary.LittleEndian, byte(1))
+		} else {
+			binary.Write(writer, binary.LittleEndian, byte(0))
+		}
 	case reflect.Int8:
 		fallthrough
 	case reflect.Int16:
@@ -148,6 +158,11 @@ func (tr *TypeRegistry) readVal(reader io.Reader, v interface{}) error {
 	kind := typ.Kind()
 	deepness := 0
 	for kind == reflect.Ptr {
+		var wasValid byte
+		binary.Read(reader, binary.LittleEndian, &wasValid)
+		if wasValid == 0 {
+			return nil
+		}
 		val.Elem().Set(reflect.New(typ.Elem()))
 		val = val.Elem()
 		typ = val.Elem().Type()
@@ -156,7 +171,9 @@ func (tr *TypeRegistry) readVal(reader io.Reader, v interface{}) error {
 	}
 	switch kind {
 	case reflect.Bool:
-		fallthrough
+		var b byte
+		binary.Read(reader, binary.LittleEndian, &b)
+		val.Elem().SetBool(b == 1)
 	case reflect.Int8:
 		fallthrough
 	case reflect.Int16:
